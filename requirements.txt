@@ -1,0 +1,9 @@
+matplotlib==2.1.1
+numpy==1.14.0
+Pillow==6.2.0
+scikit-image==0.13.1
+scikit-learn==0.19.1
+scipy==1.0.0
+tqdm==4.19.5
+opencv-python
+tensorboard
