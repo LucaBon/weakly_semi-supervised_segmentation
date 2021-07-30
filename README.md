@@ -38,7 +38,7 @@ N2 = 23 high-resolution images (70%)
 N_validation = 7 high-resolution images (20%)
 
 
-###Environment (see Dockerfile and requirements.txt):
+### Environment (see Dockerfile and requirements.txt):
 CUDA 9.2
 python 3.6
 torch 1.5.0
