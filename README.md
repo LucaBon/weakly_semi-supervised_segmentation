@@ -38,10 +38,13 @@ N2 = 23 high-resolution images (70%)
 N_validation = 7 high-resolution images (20%)
 
 
-###Environment (see Dockerfile and requirements.txt):
+### Environment (see Dockerfile and requirements.txt):
 CUDA 9.2
+
 python 3.6
+
 torch 1.5.0
+
 torchvision 0.6.0 
 
 
@@ -62,6 +65,8 @@ From the root folder
 
 ### Training
 Inside docker container run:
+
+* ```python3 run_training.py``` (it will execute `training_task_1` method )
 
 
 ### Task
