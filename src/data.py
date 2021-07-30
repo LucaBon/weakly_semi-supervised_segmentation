@@ -203,7 +203,6 @@ def split_data(labels_folder_path=LABELS_FOLDER_PATH,
     random.seed(seed)
     label_image_names = os.listdir(labels_folder_path)
     all_ids = [f.split('area')[-1].split('.')[0] for f in label_image_names]
-    print(all_ids)
 
     # Random tile numbers for train/test split
     train_pixel_ids = random.sample(all_ids, train_pixel_samples)
@@ -213,15 +212,15 @@ def split_data(labels_folder_path=LABELS_FOLDER_PATH,
     test_ids = [idx for idx in all_ids if idx not in train_pixel_ids and
                 idx not in train_image_ids]
 
-    print("Tiles for training with pixel labels : ", train_pixel_ids)
-    print("Tiles for training with image labels: ", train_image_ids)
-    print("Tiles for testing : ", test_ids)
+    print("Images indexes for training with pixel labels : ", train_pixel_ids)
+    print("Images indexes for training with image labels: ", train_image_ids)
+    print("Images indexes for testing : ", test_ids)
     return train_pixel_ids, train_image_ids, test_ids
 
 
 def load_train_pixel_ids(train_pixel_ids,
+                         batch_size,
                          cache=CACHE,
-                         batch_size=BATCH_SIZE,
                          augmentation=True):
     train_pixel_set = ISPRSTrainDataset(train_pixel_ids,
                                         cache=cache,
@@ -232,8 +231,8 @@ def load_train_pixel_ids(train_pixel_ids,
 
 
 def load_train_image_ids(train_image_ids,
+                         batch_size,
                          cache=CACHE,
-                         batch_size=BATCH_SIZE,
                          augmentation=True):
     train_image_set = ISPRSTrainDataset(train_image_ids,
                                         are_image_labels=True,

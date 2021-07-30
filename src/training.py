@@ -80,7 +80,7 @@ def train_with_pixel_labels(net,
                                             target_test_batch)
                     print('Test on batch\tLoss: {:.6f}\tIoU: {}'
                           ''.format(test_batch_loss.item(), test_batch_ious))
-
+                    print('\n')
             iter_ += 1
 
             del (data, target, loss)
@@ -95,17 +95,20 @@ def train_with_pixel_labels(net,
                                                           test_target)
                     loss_test_list.append(loss_test.item())
                     ious_test_list.append(ious)
-            mean_ious_test = np.nanmean(ious_test_list, axis=0)
+            # clutter is neglected
+            mean_ious_test = np.nanmean(ious_test_list, axis=0)[:-1]
             mean_loss_test = np.mean(loss_test_list)
+            print('\n')
             print('Test [Number of tiles in test set: {}]\tLoss: {:.6f}'
                   '\tPer class mean IoU: {}\tMean IoU: {:.3f}'.format(
                                      len(test_loader.dataset.tiles),
                                      mean_loss_test,
                                      mean_ious_test,
                                      np.mean(mean_ious_test)))
+            print('\n\n')
 
             torch.save(net.state_dict(),
-                       './EncDecUnpool_pixel_labels_epoch{}_loss{}'
+                       './EncDecUnpool_pixel_labels_epoch{}_loss_{:.6f}'
                        ''.format(e,
                                  mean_loss_test))
     torch.save(net.state_dict(), saved_model_path)
@@ -170,6 +173,16 @@ def train_with_image_labels(net,
                                 per_label_accuracy(pred, gt),
                                 per_label_precision(pred, gt),
                                 per_label_recall(pred, gt)))
+                with torch.no_grad():
+                    data_test_batch, target_test_batch = next(
+                        iter(test_loader))
+                    test_batch_loss, test_batch_ious = \
+                        evaluate_test_batch(net,
+                                            data_test_batch,
+                                            target_test_batch)
+                    print('Test on batch\tLoss: {:.6f}\tIoU: {}'
+                          ''.format(test_batch_loss.item(), test_batch_ious))
+                    print('\n')
 
             iter_ += 1
 
@@ -185,15 +198,18 @@ def train_with_image_labels(net,
                                                           target_test_batch=target)
                     loss_test_list.append(loss_test.item())
                     ious_test_list.append(ious)
-            mean_ious_test = np.nanmean(ious_test_list, axis=0)
+            # clutter is neglected
+            mean_ious_test = np.nanmean(ious_test_list, axis=0)[:-1]
             mean_loss_test = np.mean(loss_test_list)
+            print('\n')
             print('Test [Number of tiles in test set: {}]\tLoss: {:.6f}'
                   '\tPer class mean IoU: {}\tMean IoU: {:.3f}'
                   ''.format(len(test_loader.dataset.tiles),
                             mean_loss_test,
                             mean_ious_test,
                             np.mean(mean_ious_test)))
+            print('\n\n')
             torch.save(net.state_dict(),
-                       './EncDecUnpool_image_labels_epoch{}_loss{}'
+                       './EncDecUnpool_image_labels_epoch{}_loss{:.6f}'
                        ''.format(e, mean_loss_test))
     torch.save(net.state_dict(), saved_model_path)

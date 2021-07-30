@@ -22,7 +22,7 @@ CACHE = True
 # Threshold in percentage ( # pixels_of_that_class / # all_pixels)
 # If the percentage of pixel of a specific class is greater than the threshold
 # that class is considered present, otherwise it is considered absent
-THRESHOLD_IMAGE_LABELS = 1
+THRESHOLD_IMAGE_LABELS = 0
 
 # if the ground truth y_true is [1,0,0,1,1], while the predicted output
 # vector y_hat is [0.7, 0.3, 0.5, 0.6, 0.8], to evaluate performances a
@@ -48,7 +48,7 @@ INVERSE_COLOR_MAPPING = {v: k for k, v in COLOR_MAPPING.items()}
 
 # Number of epoch performed using just image-level labels
 EPOCHS_IMAGE_LABELS = 3
-LR_IMAGE_LABELS = 0.002
+LR_IMAGE_LABELS = 0.001
 # Number of epochs performed using pixel level labels
 EPOCHS = 20
 

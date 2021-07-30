@@ -159,13 +159,16 @@ class EncDecUnpoolNet(nn.Module):
         # Decoder block 1
         x = self.unpool(x, mask1)
         x = self.conv1_2_D_bn(F.relu(self.conv1_2_D(x)))
-        x = self.dropout(x)
+        # x = self.dropout(x)
         x = self.conv1_1_D(x)
 
         x = F.log_softmax(x)
+        print(max(x[0, 0, :, :]))
         # Flattening
         y = self.flatten(x)
         # Fully connected layers
         y = F.relu(self.fully_connected_1(y))
+        # y = self.dropout(y)
         y = self.fully_connected_2(y)
+
         return x, y

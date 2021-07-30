@@ -15,7 +15,7 @@ def run_training_with_pixel_labels(net,
                                    train_pixel_loader,
                                    test_loader,
                                    load_pretrained_path,
-                                   base_lr = 0.001,
+                                   base_lr,
                                    epochs=EPOCHS,
                                    loading_vgg_pre_trained=False,
                                    saved_pixel_model_path='./EncDecUnpool_pixel_labels'
@@ -38,7 +38,7 @@ def run_training_with_image_labels(net,
                                    train_image_loader,
                                    test_loader,
                                    base_lr,
-                                   epochs=EPOCHS,
+                                   epochs,
                                    loading_vgg_pre_trained=False,
                                    saved_image_model_path='./EncDecUnpool_image_final'):
     if loading_vgg_pre_trained:
@@ -81,24 +81,58 @@ def load_vgg_pretrained(base_lr, net):
     return net
 
 
-if __name__ == "__main__":
+def training_task_1():
     net = EncDecUnpoolNet()
 
     train_pixel_ids, train_image_ids, test_ids = split_data()
 
     train_pixel_loader = load_train_pixel_ids(train_pixel_ids=train_pixel_ids,
-                                              )
+                                              batch_size=10)
+    test_loader = load_test_ids(test_ids=test_ids)
+
+    pixel_model_path = './EncDecUnpool_pixel_labels_task_1'
+
+    run_training_with_pixel_labels(net=net,
+                                   train_pixel_loader=train_pixel_loader,
+                                   test_loader=test_loader,
+                                   base_lr=0.001,
+                                   epochs=20,
+                                   loading_vgg_pre_trained=True,
+                                   saved_pixel_model_path=pixel_model_path,
+                                   load_pretrained_path=None)
+
+
+def training_task_2():
+    net = EncDecUnpoolNet()
+
+    train_pixel_ids, train_image_ids, test_ids = split_data()
+
+    train_pixel_loader = load_train_pixel_ids(train_pixel_ids=train_pixel_ids,
+                                              batch_size=10)
     train_image_loader = load_train_image_ids(train_image_ids=train_image_ids,
-                                              batch_size=20)
+                                              batch_size=10)
     test_loader = load_test_ids(test_ids=test_ids)
 
     image_model_path = './EncDecUnpool_image_final'
     pixel_model_path = './EncDecUnpool_pixel_labels'
+
+    run_training_with_pixel_labels(net=net,
+                                   train_pixel_loader=train_pixel_loader,
+                                   test_loader=test_loader,
+                                   base_lr=0.001,
+                                   epochs=20,
+                                   loading_vgg_pre_trained=True,
+                                   saved_pixel_model_path=pixel_model_path,
+                                   load_pretrained_path=None)
 
     run_training_with_image_labels(net=net,
                                    train_image_loader=train_image_loader,
                                    test_loader=test_loader,
                                    base_lr=LR_IMAGE_LABELS,
                                    epochs=EPOCHS_IMAGE_LABELS,
-                                   loading_vgg_pre_trained=True,
+                                   loading_vgg_pre_trained=False,
                                    saved_image_model_path=image_model_path)
+
+
+if __name__ == "__main__":
+    training_task_1()
