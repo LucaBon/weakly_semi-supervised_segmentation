@@ -163,7 +163,6 @@ class EncDecUnpoolNet(nn.Module):
         x = self.conv1_1_D(x)
 
         x = F.log_softmax(x)
-        print(max(x[0, 0, :, :]))
         # Flattening
         y = self.flatten(x)
         # Fully connected layers
