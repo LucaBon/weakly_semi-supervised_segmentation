@@ -88,7 +88,10 @@ The network returns two outputs:
 
 To reproduce the training run `training_task_1` method in run_training.py script.
  
-The weights that gave the best segmentation results on test set are saved: `EncDecUnpool_pixel_labels_epoch13_loss0.692428`. The performances have been evaluated in terms of Intersection over Union. 
+The weights that gave the best segmentation results on test set are saved in 
+`EncDecUnpool_pixel_labels_epoch13_loss0.692428.pth`. The checkpoint can be 
+downloaded from: [download checkpoint](https://anonfiles.com/J3rf7e91ud/EncDecUnpool_pixel_labels_epoch13_loss0.692428_pth)
+The performances have been evaluated in terms of Intersection over Union. 
 
 
 On test set:
@@ -102,15 +105,27 @@ class IoUs:
 * "Tree": 0.583
 * "Car": 0.265
 
-There is overfitting during training but I didn't have time to do other experiments. Dropout can be added to prevent it. 
-The performances on class "Car" are lower since it is less represented. To address this problem I weighted more the error on class car in the loss function.
+There is over-fitting during training, but I didn't have time to do other experiments. 
+Dropout can be added to prevent it. The performances on class "Car" are lower
+since it is less represented. To address this problem I weighted more the error
+on class car in the loss function but was not enough. A sampling strategy that
+favours tiles containing cars can be implemented.
 
 
 
 **Task (ii)**
 I haven't implemented the solution.
 
-The idea is to train first with pixel-level labels as in Task (i). Evaluate the output of the log_softmax layer giving as input the N2 dataset. The output has size [batch_size, n_classes, 200, 200] with values ranging in [-inf, 0]. Set a threshold for each class. Using the image labels associated, select just the activation maps associated with the classes present in the image and use the threshold to build a mask for that class. A criteria should be defined to compose together the masks to obtain a pseudo-pixel-level label for each sample. Save the pseudo-pixel-level labels and use them to train the network. In the end, refine the result training again on the N1 pixel-level labels for some epoch.
+The idea is to train first with pixel-level labels as in Task (i). 
+Evaluate the output of the log_softmax layer giving as input the N2 dataset.
+The output has size [batch_size, n_classes, 200, 200] with values ranging in
+[-inf, 0]. Set a threshold for each class. Using the image labels associated,
+select just the activation maps associated with the classes present in the
+image and use the threshold to build a mask for that class. A criteria should
+be defined to compose together the masks to obtain a pseudo-pixel-level label
+for each sample. Save the pseudo-pixel-level labels and use them to train the
+network. In the end, refine the result training again on the N1 pixel-level
+labels for some epoch.
 
 To reproduce the training run `training_task_2` method in run_training.py script.
 
