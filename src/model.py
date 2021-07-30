@@ -97,7 +97,11 @@ class EncDecUnpoolNet(nn.Module):
                       100)
         self.fully_connected_2 = \
             nn.Linear(100, image_out_channels)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout_1 = nn.Dropout(p=0.5)
+        self.dropout_2 = nn.Dropout(p=0.5)
+        self.dropout_3 = nn.Dropout(p=0.5)
+        self.dropout_4 = nn.Dropout(p=0.5)
+        self.dropout_5 = nn.Dropout(p=0.5)
         self.apply(self.weight_init)
 
     def forward(self, x):
@@ -135,31 +139,35 @@ class EncDecUnpoolNet(nn.Module):
 
         # Decoder block 5
         x = self.unpool(x, mask5, output_size=size4)
+        x = self.dropout_1(x)
         x = self.conv5_3_D_bn(F.relu(self.conv5_3_D(x)))
         x = self.conv5_2_D_bn(F.relu(self.conv5_2_D(x)))
         x = self.conv5_1_D_bn(F.relu(self.conv5_1_D(x)))
 
         # Decoder block 4
         x = self.unpool(x, mask4, output_size=size3)
+        x = self.dropout_2(x)
         x = self.conv4_3_D_bn(F.relu(self.conv4_3_D(x)))
         x = self.conv4_2_D_bn(F.relu(self.conv4_2_D(x)))
         x = self.conv4_1_D_bn(F.relu(self.conv4_1_D(x)))
 
         # Decoder block 3
         x = self.unpool(x, mask3, output_size=size2)
+        x = self.dropout_3(x)
         x = self.conv3_3_D_bn(F.relu(self.conv3_3_D(x)))
         x = self.conv3_2_D_bn(F.relu(self.conv3_2_D(x)))
         x = self.conv3_1_D_bn(F.relu(self.conv3_1_D(x)))
 
         # Decoder block 2
         x = self.unpool(x, mask2, output_size=size1)
+        x = self.dropout_4(x)
         x = self.conv2_2_D_bn(F.relu(self.conv2_2_D(x)))
         x = self.conv2_1_D_bn(F.relu(self.conv2_1_D(x)))
 
         # Decoder block 1
         x = self.unpool(x, mask1)
+        x = self.dropout_5(x)
         x = self.conv1_2_D_bn(F.relu(self.conv1_2_D(x)))
-        # x = self.dropout(x)
         x = self.conv1_1_D(x)
 
         x = F.log_softmax(x)
@@ -167,7 +175,7 @@ class EncDecUnpoolNet(nn.Module):
         y = self.flatten(x)
         # Fully connected layers
         y = F.relu(self.fully_connected_1(y))
-        # y = self.dropout(y)
+        # y = self.dropout_6(y)
         y = self.fully_connected_2(y)
 
         return x, y

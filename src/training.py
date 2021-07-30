@@ -40,9 +40,8 @@ def train_with_pixel_labels(net,
     iter_ = 0
 
     for e in range(1, epochs + 1):
-
-        net.train()
         for batch_idx, (data, target) in enumerate(train_loader):
+            net.train()
             data, target = Variable(data.cuda()), Variable(target.cuda())
             optimizer.zero_grad()
             output_seg, output_class = net(data)
@@ -71,6 +70,7 @@ def train_with_pixel_labels(net,
                                 calculate_iou(pred,
                                               gt,
                                               label_values=LABEL_NAMES)))
+                net.eval()
                 with torch.no_grad():
                     data_test_batch, target_test_batch = next(
                         iter(test_loader))
@@ -88,6 +88,7 @@ def train_with_pixel_labels(net,
         if e % save_epoch == 0:
             loss_test_list = []
             ious_test_list = []
+            net.eval()
             with torch.no_grad():
                 for (test_data, test_target) in test_loader:
                     loss_test, ious = evaluate_test_batch(net,
@@ -173,6 +174,7 @@ def train_with_image_labels(net,
                                 per_label_accuracy(pred, gt),
                                 per_label_precision(pred, gt),
                                 per_label_recall(pred, gt)))
+                net.eval()
                 with torch.no_grad():
                     data_test_batch, target_test_batch = next(
                         iter(test_loader))
@@ -191,6 +193,7 @@ def train_with_image_labels(net,
         if e % save_epoch == 0:
             loss_test_list = []
             ious_test_list = []
+            net.eval()
             with torch.no_grad():
                 for (data, target) in test_loader:
                     loss_test, ious = evaluate_test_batch(net=net,
