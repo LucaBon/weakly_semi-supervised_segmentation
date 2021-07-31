@@ -60,8 +60,8 @@ def load_vgg_pretrained(base_lr, net):
     It loads vgg16 weights and set learning rate for encoder parameters to half
     the base learning rate
     Args:
-        base_lr (flaot): base learning rate
-        net: network
+        base_lr (float): base learning rate
+        net (model): network
 
     Returns:
 
