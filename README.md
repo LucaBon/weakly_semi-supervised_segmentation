@@ -155,7 +155,6 @@ labels for some epoch.
 Eventually, it is possible to freeze the weights for all layers except the 
 dense ones and train the multi-class classifier.
 
-To reproduce the training run `training_task_2` method in run_training.py script.
 
 
 

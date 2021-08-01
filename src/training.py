@@ -1,15 +1,16 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.autograd import Variable
 
-from utils import cross_entropy_2d, \
+from utils import \
     per_label_accuracy, \
     per_label_precision, \
     per_label_recall, \
     calculate_iou
 
-from testing import evaluate_batch, evaluate_test_set, evaluate_one_batch
+from testing import evaluate_test_set, evaluate_one_batch
 
 from constants import PIXEL_WEIGHTS, \
     IMAGE_WEIGHTS, \
@@ -67,7 +68,7 @@ def train_one_epoch_with_pixel_labels(e,
         data, target = Variable(data.cuda()), Variable(target.cuda())
         optimizer.zero_grad()
         output_seg, output_class = net(data)
-        loss = cross_entropy_2d(output_seg, target, weight=pixel_weights)
+        loss = F.nll_loss(output_seg, target, weight=pixel_weights)
         loss.backward()
         optimizer.step()
 

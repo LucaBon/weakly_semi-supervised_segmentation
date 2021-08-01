@@ -1,8 +1,9 @@
 import torch
+import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 
-from utils import cross_entropy_2d, calculate_iou
+from utils import calculate_iou
 from constants import LABEL_NAMES
 
 
@@ -44,9 +45,9 @@ def evaluate_batch(net, data_batch, target_batch):
                              Variable(target_batch.cuda())
     # calculate outputs by running images through the network
     test_output_seg, test_output_class = net(test_data)
-    loss_test = cross_entropy_2d(test_output_seg,
-                                 test_target,
-                                 )
+    loss_test = F.nll_loss(test_output_seg,
+                           test_target
+                           )
 
     test_pred = np.argmax(test_output_seg.data.cpu().numpy(),
                           axis=1)

@@ -1,8 +1,6 @@
 import random
 
 import numpy as np
-import torch
-import torch.nn.functional as F
 from sklearn.metrics import confusion_matrix
 from skimage import io
 
@@ -28,32 +26,6 @@ def extract_random_patch(img, window_shape):
     y1 = random.randint(0, image_height - height - 1)
     y2 = y1 + height
     return x1, x2, y1, y2
-
-
-def cross_entropy_2d(input, target, weight=None, size_average=True):
-    """
-    2D cross entropy loss
-    Args:
-        input (torch.Tensor): it can have 2 or 4 dimensions, predicted segmentation mask
-             [batch_size, channels, height, width] or [height, width]
-        target (torch.Tensor):
-        weight (torch.Tensor): it is possible to weight differently the classes
-        size_average (bool):
-
-    Returns:
-
-    """
-    dim = input.dim()
-    if dim == 2:
-        return F.cross_entropy(input, target, weight, size_average)
-    elif dim == 4:
-        output = input.view(input.size(0), input.size(1), -1)
-        output = torch.transpose(output, 1, 2).contiguous()
-        output = output.view(-1, output.size(2))
-        target = target.view(-1)
-        return F.cross_entropy(output, target, weight, size_average)
-    else:
-        raise ValueError('Expected 2 or 4 dimensions (got {})'.format(dim))
 
 
 def split_into_tiles(image_path, tile_size):
