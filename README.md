@@ -120,21 +120,21 @@ favours tiles containing cars can be implemented.
 
 A Dropout layer has been added at every block in the decoder layers.
 A new training has been performed. The weights that gave the best segmentation results
-on test set are saved in `EncDecUnpool_pixel_labels_epoch15_loss_0.510010"`. The checkpoint can be 
-downloaded from: [download checkpoint]("https://anonfiles.com/Lfa6L39fu5/EncDecUnpool_pixel_labels_epoch15_loss_0_510010")
+on test set are saved in `EncDecUnpool_pixel_labels_epoch19_loss_0.506415`. The checkpoint can be 
+downloaded from: [download checkpoint](https://anonfiles.com/ffecW294ud/EncDecUnpool_pixel_labels_epoch19_loss_0_506415)
 The over-fitting has been reduced but still present. The performances on test set 
 increased:
 
 On test set (with dropout)
 
-Mean IoU: 0.596
+Mean IoU: 0.603
 
 class IoUs: 
-* "Impervious surfaces": 0.715
-* "Building": 0.760
-* "Low vegetation": 0.487
-* "Tree": 0.656
-* "Car": 0.363
+* "Impervious surfaces": 0.718
+* "Building": 0.772
+* "Low vegetation": 0.491
+* "Tree": 0.654
+* "Car": 0.378
 
 ---------
 
