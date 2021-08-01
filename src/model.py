@@ -98,11 +98,11 @@ class EncDecUnpoolNet(nn.Module):
         self.fully_connected_2 = \
             nn.Linear(100, image_out_channels)
 
-        self.dropout_2D_1 = nn.Dropout2d(p=0.05)
-        self.dropout_2D_2 = nn.Dropout2d(p=0.1)
-        self.dropout_2D_3 = nn.Dropout2d(p=0.1)
-        self.dropout_2D_4 = nn.Dropout2d(p=0.1)
-        self.dropout_2D_5 = nn.Dropout2d(p=0.1)
+        self.dropout_2D_1 = nn.Dropout2d(p=0.1)
+        self.dropout_2D_2 = nn.Dropout2d(p=0.2)
+        self.dropout_2D_3 = nn.Dropout2d(p=0.2)
+        self.dropout_2D_4 = nn.Dropout2d(p=0.3)
+        self.dropout_2D_5 = nn.Dropout2d(p=0.5)
         self.dropout_1 = nn.Dropout(p=0.5)
         self.dropout_2 = nn.Dropout(p=0.5)
         self.dropout_3 = nn.Dropout(p=0.5)
