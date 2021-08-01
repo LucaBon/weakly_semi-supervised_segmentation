@@ -11,11 +11,11 @@ BATCH_SIZE = 10
 N_CLASSES = 6
 
 # car class is weighted more
-PIXEL_WEIGHTS = torch.FloatTensor([1.0, 1.0, 1.0, 1.0, 10.0, 1.0])
+PIXEL_WEIGHTS = torch.FloatTensor([0.067, 0.067, 0.067, 0.067, 0.667, 0.067])
 
 N_CLASSES_IMAGE_LABELS = 5  # clutter is neglected
 # car class is weighted more
-IMAGE_WEIGHTS = torch.FloatTensor([1.0, 1.0, 1.0, 1.0, 10.0])
+IMAGE_WEIGHTS = torch.FloatTensor([0.071, 0.071, 0.071, 0.071, 0.714])
 
 CACHE = True
 
