@@ -97,6 +97,12 @@ class EncDecUnpoolNet(nn.Module):
                       100)
         self.fully_connected_2 = \
             nn.Linear(100, image_out_channels)
+
+        self.dropout_2D_1 = nn.Dropout2d(p=0.05)
+        self.dropout_2D_2 = nn.Dropout2d(p=0.1)
+        self.dropout_2D_3 = nn.Dropout2d(p=0.1)
+        self.dropout_2D_4 = nn.Dropout2d(p=0.1)
+        self.dropout_2D_5 = nn.Dropout2d(p=0.1)
         self.dropout_1 = nn.Dropout(p=0.5)
         self.dropout_2 = nn.Dropout(p=0.5)
         self.dropout_3 = nn.Dropout(p=0.5)
@@ -108,12 +114,14 @@ class EncDecUnpoolNet(nn.Module):
         # Encoder block 1
         x = self.conv1_1_bn(F.relu(self.conv1_1(x)))
         x = self.conv1_2_bn(F.relu(self.conv1_2(x)))
+        x = self.dropout_2D_1(x)
         x, mask1 = self.pool(x)
         size1 = x.size()
 
         # Encoder block 2
         x = self.conv2_1_bn(F.relu(self.conv2_1(x)))
         x = self.conv2_2_bn(F.relu(self.conv2_2(x)))
+        x = self.dropout_2D_2(x)
         x, mask2 = self.pool(x)
         size2 = x.size()
 
@@ -121,6 +129,7 @@ class EncDecUnpoolNet(nn.Module):
         x = self.conv3_1_bn(F.relu(self.conv3_1(x)))
         x = self.conv3_2_bn(F.relu(self.conv3_2(x)))
         x = self.conv3_3_bn(F.relu(self.conv3_3(x)))
+        x = self.dropout_2D_3(x)
         x, mask3 = self.pool(x)
         size3 = x.size()
 
@@ -128,6 +137,7 @@ class EncDecUnpoolNet(nn.Module):
         x = self.conv4_1_bn(F.relu(self.conv4_1(x)))
         x = self.conv4_2_bn(F.relu(self.conv4_2(x)))
         x = self.conv4_3_bn(F.relu(self.conv4_3(x)))
+        x = self.dropout_2D_4(x)
         x, mask4 = self.pool(x)
         size4 = x.size()
 
@@ -135,6 +145,7 @@ class EncDecUnpoolNet(nn.Module):
         x = self.conv5_1_bn(F.relu(self.conv5_1(x)))
         x = self.conv5_2_bn(F.relu(self.conv5_2(x)))
         x = self.conv5_3_bn(F.relu(self.conv5_3(x)))
+        x = self.dropout_2D_5(x)
         x, mask5 = self.pool(x)
 
         # Decoder block 5
