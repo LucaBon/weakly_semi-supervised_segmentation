@@ -7,7 +7,6 @@ from skimage import io
 
 from constants import IMAGE_FOLDER_PATH, \
     LABELS_FOLDER_PATH, \
-    TILE_SIZE, \
     CACHE, \
     BATCH_SIZE, \
     THRESHOLD_IMAGE_LABELS, \
@@ -22,6 +21,7 @@ from utils import convert_from_color, \
 class ISPRSDataset(torch.utils.data.Dataset):
     def __init__(self,
                  image_indexes,
+                 tile_size,
                  augmentation,
                  image_path=IMAGE_FOLDER_PATH,
                  label_path=LABELS_FOLDER_PATH,
@@ -35,6 +35,7 @@ class ISPRSDataset(torch.utils.data.Dataset):
         self.augmentation = augmentation
         self.cache = cache
         self.are_image_labels = are_image_labels
+        self.tile_size = tile_size
 
         self.data_files = [os.path.join(image_path, name_format.format(index))
                            for index in image_indexes]
@@ -60,6 +61,7 @@ class ISPRSDataset(torch.utils.data.Dataset):
 class ISPRSTrainDataset(ISPRSDataset):
     def __init__(self,
                  image_indexes,
+                 tile_size,
                  augmentation,
                  image_path=IMAGE_FOLDER_PATH,
                  label_path=LABELS_FOLDER_PATH,
@@ -69,6 +71,7 @@ class ISPRSTrainDataset(ISPRSDataset):
                  ):
 
         super(ISPRSTrainDataset, self).__init__(image_indexes,
+                                                tile_size,
                                                 augmentation,
                                                 image_path,
                                                 label_path,
@@ -130,7 +133,8 @@ class ISPRSTrainDataset(ISPRSDataset):
                 self.label_cache_[random_idx] = label
 
         # Get a random patch
-        x1, x2, y1, y2 = extract_random_patch(data, TILE_SIZE)
+        x1, x2, y1, y2 = extract_random_patch(img=data,
+                                              window_shape=self.tile_size)
         data_p = data[:, x1:x2, y1:y2]
         label_p = label[x1:x2, y1:y2]
 
@@ -151,6 +155,7 @@ class ISPRSTrainDataset(ISPRSDataset):
 class ISPRSTestDataset(ISPRSDataset):
     def __init__(self,
                  image_indexes,
+                 tile_size,
                  augmentation=False,
                  image_path=IMAGE_FOLDER_PATH,
                  label_path=LABELS_FOLDER_PATH,
@@ -160,6 +165,7 @@ class ISPRSTestDataset(ISPRSDataset):
                  ):
 
         super(ISPRSTestDataset, self).__init__(image_indexes,
+                                               tile_size,
                                                augmentation,
                                                image_path,
                                                label_path,
@@ -170,10 +176,10 @@ class ISPRSTestDataset(ISPRSDataset):
         self.tiles_labels = []
         for image_path in self.data_files:
             self.tiles.extend(split_into_tiles(image_path=image_path,
-                                               tile_size=TILE_SIZE))
+                                               tile_size=self.tile_size))
         for label_path in self.label_files:
             self.tiles_labels.extend(split_into_tiles(image_path=label_path,
-                                                      tile_size=TILE_SIZE))
+                                                      tile_size=self.tile_size))
 
     def __len__(self):
         return len(self.tiles)
@@ -219,10 +225,12 @@ def split_data(labels_folder_path=LABELS_FOLDER_PATH,
 
 
 def load_train_pixel_ids(train_pixel_ids,
+                         tile_size,
                          batch_size,
                          cache=CACHE,
                          augmentation=True):
     train_pixel_set = ISPRSTrainDataset(train_pixel_ids,
+                                        tile_size=tile_size,
                                         cache=cache,
                                         augmentation=augmentation)
     train_pixel_loader = torch.utils.data.DataLoader(train_pixel_set,
@@ -231,10 +239,12 @@ def load_train_pixel_ids(train_pixel_ids,
 
 
 def load_train_image_ids(train_image_ids,
+                         tile_size,
                          batch_size,
                          cache=CACHE,
                          augmentation=True):
     train_image_set = ISPRSTrainDataset(train_image_ids,
+                                        tile_size=tile_size,
                                         are_image_labels=True,
                                         cache=cache,
                                         augmentation=augmentation)
@@ -244,8 +254,10 @@ def load_train_image_ids(train_image_ids,
 
 
 def load_test_ids(test_ids,
+                  tile_size,
                   batch_size=BATCH_SIZE):
-    test_set = ISPRSTestDataset(test_ids)
+    test_set = ISPRSTestDataset(test_ids,
+                                tile_size=tile_size)
     test_loader = torch.utils.data.DataLoader(test_set,
                                               batch_size=batch_size)
     return test_loader

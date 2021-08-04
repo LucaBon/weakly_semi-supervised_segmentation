@@ -1,6 +1,5 @@
 import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
 import numpy as np
 
 from utils import calculate_iou
@@ -41,10 +40,9 @@ def evaluate_batch(net, data_batch, target_batch):
     Returns:
 
     """
-    test_data, test_target = Variable(data_batch.cuda()), \
-                             Variable(target_batch.cuda())
+    test_data, test_target = data_batch.cuda(), target_batch.cuda()
     # calculate outputs by running images through the network
-    test_output_seg, test_output_class = net(test_data)
+    test_output_seg = net(test_data)
     loss_test = F.nll_loss(test_output_seg,
                            test_target
                            )
@@ -56,6 +54,7 @@ def evaluate_batch(net, data_batch, target_batch):
                          test_gt,
                          label_values=LABEL_NAMES)
     return loss_test, ious
+
 
 def evaluate_test_set(net, test_loader, load_pretrained_path=None):
     """
@@ -87,9 +86,9 @@ def evaluate_test_set(net, test_loader, load_pretrained_path=None):
     print('\n')
     print('Test [Number of tiles in test set: {}]\tLoss: {:.6f}'
           '\tPer class mean IoU: {}\tMean IoU: {:.3f}'.format(
-        len(test_loader.dataset.tiles),
-        mean_loss_test,
-        mean_ious_test,
-        np.mean(mean_ious_test)))
+                len(test_loader.dataset.tiles),
+                mean_loss_test,
+                mean_ious_test,
+                np.mean(mean_ious_test)))
     print('\n\n')
     return mean_loss_test, mean_ious_test

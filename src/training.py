@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 from utils import \
     per_label_accuracy, \
@@ -30,7 +29,7 @@ def train_with_pixel_labels(net,
                             save_epoch=1):
     if load_pretrained_path is not None:
         weights = torch.load(load_pretrained_path)
-        net.load_state_dict(weights)
+        net.load_state_dict(weights, strict=False)
 
     losses = []
     moving_average_losses = []
@@ -65,9 +64,9 @@ def train_one_epoch_with_pixel_labels(e,
                                       train_loader):
     for batch_idx, (data, target) in enumerate(train_loader):
         net.train()
-        data, target = Variable(data.cuda()), Variable(target.cuda())
+        data, target = data.cuda(), target.cuda()
         optimizer.zero_grad()
-        output_seg, output_class = net(data)
+        output_seg = net(data)
         loss = F.nll_loss(output_seg, target, weight=pixel_weights)
         loss.backward()
         optimizer.step()
@@ -97,7 +96,6 @@ def train_one_epoch_with_pixel_labels(e,
         iter_ += 1
 
 
-
 def train_with_image_labels(net,
                             optimizer,
                             train_loader,
@@ -121,10 +119,21 @@ def train_with_image_labels(net,
     iter_ = 0
 
     for e in range(1, epochs + 1):
-        train_one_epoch_with_image_labels(e, epochs, image_weights, iter_, losses, moving_average_losses,
-                                          multi_label_threshold, net, optimizer, test_loader, train_loader)
+        train_one_epoch_with_image_labels(e,
+                                          epochs,
+                                          image_weights,
+                                          iter_,
+                                          losses,
+                                          moving_average_losses,
+                                          multi_label_threshold,
+                                          net,
+                                          optimizer,
+                                          test_loader,
+                                          train_loader)
 
-        mean_loss_test, mean_ious_test = evaluate_test_set(net=net, test_loader=test_loader)
+        mean_loss_test, mean_ious_test = \
+            evaluate_test_set(net=net,
+                              test_loader=test_loader)
         if e % save_epoch == 0:
             torch.save(net.state_dict(),
                        './EncDecUnpool_image_labels_epoch{}_loss{:.6f}'
@@ -147,26 +156,27 @@ def train_one_epoch_with_image_labels(e,
                                       train_loader):
     for batch_idx, (data, target) in enumerate(train_loader):
         net.train()
-        data, target = Variable(data.cuda()), Variable(target.cuda())
+        data, target = data.cuda(), target.cuda()
         optimizer.zero_grad()
-        output_seg, output_class = net(data)
-        # for class car a weight 10 is used to increase recall
-        # (TP / TP + FN)
-        loss = nn.BCEWithLogitsLoss(
-            reduction='none',
-            pos_weight=image_weights)(output_class, target)
+        output_class = net(data)
 
-        loss.sum().backward()
+        loss = nn.MultiLabelSoftMarginLoss()(output_class,
+                                             target)
+        loss = loss * image_weights
+
+        loss.backward()
         optimizer.step()
 
-        losses.append(loss.sum().item())
+        losses.append(loss.item())
         # moving average calculated over 100 iterations
         moving_average_losses.append(np.mean(losses[max(0, iter_ - 100):iter_]))
 
         if iter_ % 100 == 0:
             pred = output_class.data.cpu().numpy()
             pred = np.where(pred > multi_label_threshold, 1, 0)
+            print("PRED: ", pred)
             gt = target.data.cpu().numpy()
+            print("GT:", gt)
             per_label_accuracy_result = per_label_accuracy(pred, gt)
             per_label_precision_result = per_label_precision(pred, gt)
             per_label_recall_result = per_label_recall(pred, gt)
@@ -178,7 +188,7 @@ def train_one_epoch_with_image_labels(e,
                             batch_idx,
                             len(train_loader),
                             100. * batch_idx / len(train_loader),
-                            loss.mean().item(),
+                            loss.item(),
                             per_label_accuracy_result,
                             per_label_precision_result,
                             per_label_recall_result))

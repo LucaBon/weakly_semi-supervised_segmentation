@@ -53,3 +53,10 @@ LR_IMAGE_LABELS = 0.001
 EPOCHS = 20
 
 VGG16_URL = 'https://download.pytorch.org/models/vgg16_bn-6c64b313.pth'
+
+BG_SCORE = 0.1  # background score (only for CAM)
+FOCAL_P = 3
+FOCAL_LAMBDA = 0.01
+PAMR_KERNEL = [1, 2, 4, 8, 12, 24]
+PAMR_ITER = 10
+SG_PSI = 0.3
