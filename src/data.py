@@ -146,7 +146,8 @@ class ISPRSTrainDataset(ISPRSDataset):
             label_p = \
                 calculate_image_labels(label_p,
                                        threshold_image_labels=THRESHOLD_IMAGE_LABELS)
-
+            data_p = resnet_normalization(data_p)
+        data_pollo = data_p
         # Return the torch.Tensor values
         return (torch.from_numpy(data_p),
                 torch.from_numpy(label_p))
@@ -261,3 +262,20 @@ def load_test_ids(test_ids,
     test_loader = torch.utils.data.DataLoader(test_set,
                                               batch_size=batch_size)
     return test_loader
+
+
+def resnet_normalization(data):
+    # Data is normalized with
+    # mean = (0.485, 0.456, 0.406), std = (0.229, 0.224, 0.225)
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+
+    data_p = np.empty_like(data)
+
+    data_p[0, ...] = (data[0, ...] - mean[0]) / \
+                   std[0]
+    data_p[1, ...] = (data[1, ...] - mean[1]) / \
+                   std[1]
+    data_p[2, ...] = (data[2, ...] - mean[2]) / \
+                   std[2]
+    return data_p

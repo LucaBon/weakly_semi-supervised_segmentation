@@ -47,7 +47,7 @@ COLOR_MAPPING = {0: (255, 255, 255),  # Impervious surfaces (WHITE)
 INVERSE_COLOR_MAPPING = {v: k for k, v in COLOR_MAPPING.items()}
 
 # Number of epoch performed using just image-level labels
-EPOCHS_IMAGE_LABELS = 3
+EPOCHS_IMAGE_LABELS = 15
 LR_IMAGE_LABELS = 0.001
 # Number of epochs performed using pixel level labels
 EPOCHS = 20
@@ -60,3 +60,7 @@ FOCAL_LAMBDA = 0.01
 PAMR_KERNEL = [1, 2, 4, 8, 12, 24]
 PAMR_ITER = 10
 SG_PSI = 0.3
+
+RESNET38_WEIGHTS_PATH = './resnet_weights/ilsvrc-cls_rna-a1_cls1000_ep-0001.pth'
+PRETRAIN_EPOCHS = 5
+IMAGE_BATCH_SIZE = 10

@@ -1,5 +1,7 @@
+from functools import partial
+
 import torch.optim as optim
-import torchvision.models.resnet
+import torch.nn as nn
 
 from model import EncDecUnpoolNet
 from pre_trained_vgg import download_vgg, load_vgg_weights
@@ -13,8 +15,11 @@ from constants import EPOCHS,\
     EPOCHS_IMAGE_LABELS,\
     LR_IMAGE_LABELS,\
     TILE_SIZE, \
-    N_CLASSES_IMAGE_LABELS
-from resnet38 import ResNet38
+    N_CLASSES_IMAGE_LABELS, \
+    RESNET38_WEIGHTS_PATH, \
+    IMAGE_BATCH_SIZE, \
+    BATCH_SIZE
+from model import SoftMaxAE
 
 
 def run_training_with_pixel_labels(net,
@@ -51,7 +56,7 @@ def run_training_with_image_labels(net,
     if loading_vgg_pre_trained:
         net = load_vgg_pretrained(base_lr, net)
 
-    net.cuda()
+    net = nn.DataParallel(net).cuda()
     optimizer = optim.Adam(net.parameters(), lr=base_lr)
     train_with_image_labels(net=net,
                             optimizer=optimizer,
@@ -96,7 +101,7 @@ def training_task_1():
 
     train_pixel_loader = load_train_pixel_ids(train_pixel_ids=train_pixel_ids,
                                               tile_size=TILE_SIZE,
-                                              batch_size=10)
+                                              batch_size=BATCH_SIZE)
     test_loader = load_test_ids(test_ids=test_ids,
                                 tile_size=TILE_SIZE)
 
@@ -112,39 +117,43 @@ def training_task_1():
                                    load_pretrained_path=None)
 
 
+def get_model(backbone, *args, **kwargs):
+    net = partial(backbone)
+    return net(*args, **kwargs)
+
+
 def training_task_2():
     net = EncDecUnpoolNet()
 
-    resnet38 = ResNet38(num_classes=N_CLASSES_IMAGE_LABELS)
+    encoder = get_model(backbone=SoftMaxAE,
+                        num_classes=N_CLASSES_IMAGE_LABELS)
 
     train_pixel_ids, train_image_ids, test_ids = split_data()
 
     train_pixel_loader = load_train_pixel_ids(train_pixel_ids=train_pixel_ids,
                                               tile_size=TILE_SIZE,
-                                              batch_size=10)
+                                              batch_size=BATCH_SIZE)
     train_image_loader = load_train_image_ids(train_image_ids=train_image_ids,
                                               tile_size=TILE_SIZE,
-                                              batch_size=10)
+                                              batch_size=IMAGE_BATCH_SIZE)
     test_loader = load_test_ids(test_ids=test_ids,
                                 tile_size=TILE_SIZE)
 
     image_model_path = './EncDecUnpool_image_final'
     pixel_model_path = './EncDecUnpool_pixel_labels_epoch19_loss_0.506415'
 
-    run_training_with_image_labels(net=resnet38,
+    run_training_with_image_labels(net=encoder,
                                    train_image_loader=train_image_loader,
                                    test_loader=test_loader,
-                                   load_pretrained_path=pixel_model_path,
+                                   load_pretrained_path=RESNET38_WEIGHTS_PATH,
                                    base_lr=LR_IMAGE_LABELS,
                                    epochs=EPOCHS_IMAGE_LABELS,
                                    loading_vgg_pre_trained=True,
                                    saved_image_model_path=image_model_path)
 
-    generate_pseudo_pixel_level_labels
+    # generate_pseudo_pixel_level_labels
 
-    run_training_with_pixel_labels()
-
-
+    # run_training_with_pixel_labels()
 
 if __name__ == "__main__":
     training_task_2()

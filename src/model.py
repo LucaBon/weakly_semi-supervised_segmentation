@@ -218,6 +218,7 @@ class BaselineCAM(ResNet38):
     def forward_cls(self, x):
         return self.cls_branch(x)
 
+
     def forward_mask(self, x, size):
         logits = self.fc8(x)
         masks = F.interpolate(logits,
@@ -263,7 +264,7 @@ class BaselineCAM(ResNet38):
 
         return cls, cls_fg, {"cam": masks}, logits, None, None
 
-    def _rescale_and_clean(self, masks, image, labels):
+    def _rescale_and_clean(masks, image, labels):
         masks = F.interpolate(masks,
                               size=image.size()[-2:],
                               mode='bilinear',
@@ -274,13 +275,13 @@ class BaselineCAM(ResNet38):
 
 class SoftMaxAE(ResNet38):
 
-    def __init__(self, config, pre_weights=None, num_classes=5,
+    def __init__(self, pre_weights=None, num_classes=5,
                  dropout=True):
         super().__init__()
 
         self.num_classes = num_classes
 
-        self._init_weights(pre_weights)  # initialise backbone weights
+        #elf._init_weights(pre_weights)  # initialise backbone weights
         self._fix_running_stats(self,
                                 fix_params=True)  # freeze backbone BNs
 
@@ -385,8 +386,8 @@ class SoftMaxAE(ResNet38):
         #
 
         # constant BG scores
-        bg = torch.ones_like(x[:, :1])
-        x = torch.cat([bg, x], 1)
+        # bg = torch.ones_like(x[:, :1])
+        # x = torch.cat([bg, x], 1)
 
         bs, c, h, w = x.size()
 
@@ -405,7 +406,8 @@ class SoftMaxAE(ResNet38):
                            c=FOCAL_LAMBDA)
 
         # adding the losses together
-        cls = cls_1[:, 1:] + cls_2[:, 1:]
+        # cls = cls_1[:, 1:] + cls_2[:, 1:]
+        cls = cls_1[:, :] + cls_2[:, :]
 
         if test_mode:
             # if in test mode, not mask
@@ -415,7 +417,7 @@ class SoftMaxAE(ResNet38):
         self._mask_logits = x
 
         # foreground stats
-        masks_ = masks_[:, 1:]
+        # masks_ = masks_[:, 1:]
         cls_fg = (masks_.mean(-1) * labels).sum(-1) / labels.sum(-1)
 
         # mask refinement with PAMR
@@ -433,10 +435,12 @@ class SoftMaxAE(ResNet38):
         return cls, cls_fg, {"cam": masks,
                              "dec": masks_dec}, self._mask_logits, pseudo_gt, loss_mask
 
-    def _rescale_and_clean(self, masks, image, labels):
+    @staticmethod
+    def _rescale_and_clean(masks, image, labels):
         """Rescale to fit the image size and remove any masks
         of labels that are not present"""
         masks = F.interpolate(masks, size=image.size()[-2:],
                               mode='bilinear', align_corners=True)
-        masks[:, 1:] *= labels[:, :, None, None].type_as(masks)
+        # masks[:, 1:] *= labels[:, :, None, None].type_as(masks)
+        masks[:, :] *= labels[:, :, None, None].type_as(masks)
         return masks

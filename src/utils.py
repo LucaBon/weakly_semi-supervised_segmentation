@@ -3,6 +3,8 @@ import random
 import numpy as np
 from sklearn.metrics import confusion_matrix
 from skimage import io
+import torch
+import torch.nn.functional as F
 
 from constants import COLOR_MAPPING, INVERSE_COLOR_MAPPING
 
@@ -212,7 +214,7 @@ def convert_from_color(arr_3d, palette=INVERSE_COLOR_MAPPING):
 def calculate_image_labels(tile_labels,
                            threshold_image_labels):
     """
-    Calculate image-level labels. Clutter is neglected.
+    Calculate image-level labels. Clutter is neglected
     Args:
         tile_labels (np.ndarray): labels on a tile of size TILE_SIZE
         threshold_image_labels: Threshold in percentage
@@ -375,3 +377,23 @@ def balanced_mask_loss_ce(mask, pseudo_gt, gt_labels, ignore_index=255):
 
     loss = batch_weight * (class_weight * loss).mean(-1)
     return loss
+
+
+def denorm(image):
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+
+    if image.dim() == 3:
+        assert image.dim() == 3, "Expected image [CxHxW]"
+        assert image.size(0) == 3, "Expected RGB image [3xHxW]"
+
+        for t, m, s in zip(image, mean, std):
+            t.mul_(s).add_(m)
+    elif image.dim() == 4:
+        # batch mode
+        assert image.size(1) == 3, "Expected RGB image [3xHxW]"
+
+        for t, m, s in zip((0, 1, 2), mean, std):
+            image[:, t, :, :].mul_(s).add_(m)
+
+    return image

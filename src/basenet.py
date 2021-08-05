@@ -43,10 +43,10 @@ class BaseNet(nn.Module):
         self.bn_frozen = []  # freezing running stats
         self.from_scratch_layers = []  # new layers -> higher LR
 
-    def _init_weights(self, path_to_weights):
-        print("Loading weights from: ", path_to_weights)
-        weights_dict = torch.load(path_to_weights)
-        self.load_state_dict(weights_dict, strict=False)
+    # def _init_weights(self, path_to_weights):
+    #     print("Loading weights from: ", path_to_weights)
+    #     weights_dict = torch.load(path_to_weights)
+    #     self.load_state_dict(weights_dict, strict=False)
 
     def fan_out(self):
         raise NotImplementedError
