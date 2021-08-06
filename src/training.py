@@ -8,7 +8,9 @@ from utils import \
     per_label_precision, \
     per_label_recall, \
     calculate_iou, \
-    denorm
+    denorm, \
+    mask_to_tensor, \
+    calculate_batch_image_labels
 
 from testing import evaluate_test_set, evaluate_one_batch
 
@@ -16,7 +18,8 @@ from constants import PIXEL_WEIGHTS, \
     IMAGE_WEIGHTS, \
     MULTI_LABEL_THRESHOLD, \
     LABEL_NAMES, \
-    PRETRAIN_EPOCHS
+    PRETRAIN_EPOCHS, \
+    THRESHOLD_IMAGE_LABELS
 
 
 def train_with_pixel_labels(net,
@@ -119,6 +122,7 @@ def train_with_image_labels(net,
     image_weights = image_weights.cuda()
 
     iter_ = 0
+    net.cuda()
 
     for e in range(1, epochs + 1):
         train_one_epoch_with_image_labels(e,
@@ -156,28 +160,31 @@ def train_one_epoch_with_image_labels(e,
                                       optimizer,
                                       test_loader,
                                       train_loader):
-    PRETRAIN = e < PRETRAIN_EPOCHS
+    pretrain = e < PRETRAIN_EPOCHS
     for batch_idx, (data, target) in enumerate(train_loader):
         net.train()
         # denorm image
         data_raw = denorm(data.clone())
         data, data_raw, target = data.cuda(), data_raw.cuda(), target.cuda()
         optimizer.zero_grad()
-        output_class, cls_fg, masks, mask_logits, pseudo_gt, loss_mask = net(data, data_raw, target)
+        output_class, cls_fg, masks, mask_logits, pseudo_gt, loss_mask = \
+            net(data, data_raw, target)
+
+        pseudo_gt_one_channel = mask_to_tensor(pseudo_gt).cpu().numpy()
 
         classification_loss = nn.MultiLabelSoftMarginLoss()(output_class,
-                                             target)
+                                                            target)
         classification_loss = classification_loss * image_weights
         classification_loss = classification_loss.mean()
         loss = classification_loss.clone()
-
+        loss.cuda()
         all_losses = {"loss_cls": classification_loss.item(),
                       "loss_fg": cls_fg.mean().item()}
 
         if "dec" in masks:
             loss_mask = loss_mask.mean()
 
-            if not PRETRAIN:
+            if not pretrain:
                 loss += loss_mask
 
             assert not "pseudo" in masks
@@ -196,9 +203,9 @@ def train_one_epoch_with_image_labels(e,
         # moving average calculated over 100 iterations
         moving_average_losses.append(np.mean(losses[max(0, iter_ - 100):iter_]))
 
-        if iter_ % 100 == 0:
-            pred = output_class.data.cpu().numpy()
-            pred = np.where(pred > multi_label_threshold, 1, 0)
+        if iter_ % 1 == 0:
+            pred = calculate_batch_image_labels(pseudo_gt_one_channel,
+                                                THRESHOLD_IMAGE_LABELS)
             print("PRED: ", pred)
             gt = target.data.cpu().numpy()
             print("GT:", gt)

@@ -150,7 +150,6 @@ class ResNet38(BaseNet):
 
     def __init__(self):
         super(ResNet38, self).__init__()
-
         self.conv1a = nn.Conv2d(3, 64, 3, padding=1, bias=False)
 
         self.b2 = ResBlock(64, 128, 128, stride=2)

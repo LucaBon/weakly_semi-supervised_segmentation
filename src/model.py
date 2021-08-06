@@ -188,12 +188,11 @@ class Flatten(nn.Module):
 class BaselineCAM(ResNet38):
 
     def __init__(self,
-                 pre_weights=None,
                  num_classes=5,
                  dropout=True):
         super().__init__()
 
-        self.fc8 = nn.Conv2d(self.fan_out(), num_classes - 1, 1,
+        self.fc8 = nn.Conv2d(self.fan_out(), num_classes, 1,
                              bias=False)
         nn.init.xavier_uniform_(self.fc8.weight)
 
@@ -205,7 +204,7 @@ class BaselineCAM(ResNet38):
         self.mask_branch = nn.Sequential(self.fc8, nn.ReLU())
 
         self.from_scratch_layers = [self.fc8]
-        self._init_weights(pre_weights)
+
         self._mask_logits = None
 
         self._fix_running_stats(self,
@@ -217,7 +216,6 @@ class BaselineCAM(ResNet38):
 
     def forward_cls(self, x):
         return self.cls_branch(x)
-
 
     def forward_mask(self, x, size):
         logits = self.fc8(x)
@@ -236,8 +234,8 @@ class BaselineCAM(ResNet38):
         masks_ /= (1e-5 + z)
         masks = masks.view(b, c, h, w)
 
-        bg = torch.ones_like(masks[:, :1])
-        masks = torch.cat([BG_SCORE * bg, masks], 1)
+        # bg = torch.ones_like(masks[:, :1])
+        # masks = torch.cat([BG_SCORE * bg, masks], 1)
 
         # note, that the masks contain the background as the first channel
         return logits, masks
@@ -275,13 +273,12 @@ class BaselineCAM(ResNet38):
 
 class SoftMaxAE(ResNet38):
 
-    def __init__(self, pre_weights=None, num_classes=5,
+    def __init__(self,
+                 num_classes=5,
                  dropout=True):
         super().__init__()
 
         self.num_classes = num_classes
-
-        #elf._init_weights(pre_weights)  # initialise backbone weights
         self._fix_running_stats(self,
                                 fix_params=True)  # freeze backbone BNs
 
@@ -342,7 +339,7 @@ class SoftMaxAE(ResNet38):
                    bias=False),
             bnorm(256), nn.ReLU(),
             nn.Dropout(0.1),
-            conv2d(256, num_classes - 1, kernel_size=1, stride=1))
+            conv2d(256, num_classes, kernel_size=1, stride=1))
 
     def run_pamr(self, im, mask):
         im = F.interpolate(im, mask.size()[-2:], mode="bilinear",
@@ -429,7 +426,8 @@ class SoftMaxAE(ResNet38):
 
         # create pseudo GT
         pseudo_gt = pseudo_gtmask(masks_dec).detach()
-        loss_mask = balanced_mask_loss_ce(self._mask_logits, pseudo_gt,
+        loss_mask = balanced_mask_loss_ce(self._mask_logits,
+                                          pseudo_gt,
                                           labels)
 
         return cls, cls_fg, {"cam": masks,

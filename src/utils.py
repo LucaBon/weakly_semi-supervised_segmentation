@@ -6,7 +6,10 @@ from skimage import io
 import torch
 import torch.nn.functional as F
 
-from constants import COLOR_MAPPING, INVERSE_COLOR_MAPPING
+from constants import \
+    COLOR_MAPPING,\
+    INVERSE_COLOR_MAPPING,\
+    N_CLASSES_IMAGE_LABELS
 
 
 def extract_random_patch(img, window_shape):
@@ -224,11 +227,11 @@ def calculate_image_labels(tile_labels,
             considered absent (0)
 
     Returns:
-        np.ndarray (5,): label vector ex. [0, 1, 0, 0, 1]
+        np.ndarray (N_CLASSES_IMAGE_LABELS,): label vector ex. [0, 1, 0, 0, 1]
     """
 
     # only five classes are considered, clutter is neglected
-    label_vector = np.zeros(shape=5)
+    label_vector = np.zeros(shape=N_CLASSES_IMAGE_LABELS)
 
     labels, counts = np.unique(tile_labels, return_counts=True)
     threshold_number_pixel = threshold_image_labels * sum(counts) / 100
@@ -237,6 +240,17 @@ def calculate_image_labels(tile_labels,
             label_vector[label] = 1
 
     return label_vector
+
+
+def calculate_batch_image_labels(batch_tile_labels,
+                                 threshold_image_labels):
+    bs, h, w = batch_tile_labels.shape
+    batch_image_labels = np.ndarray((bs, N_CLASSES_IMAGE_LABELS))
+    for i, tile_labels in enumerate(batch_tile_labels):
+        label_vector = calculate_image_labels(tile_labels,
+                                              threshold_image_labels)
+        batch_image_labels[i] = label_vector
+    return batch_image_labels
 
 
 def per_label_accuracy(predictions, gts):
@@ -371,7 +385,7 @@ def balanced_mask_loss_ce(mask, pseudo_gt, gt_labels, ignore_index=255):
 
     # we will have the loss only for batch indices
     # which have all classes in pseudo mask
-    gt_num_labels = gt_labels.sum(-1).type_as(loss) + 1  # + BG
+    gt_num_labels = gt_labels.sum(-1).type_as(loss)
     ps_num_labels = (num_pixels_per_class > 0).type_as(loss).sum(-1)
     batch_weight = (gt_num_labels == ps_num_labels).type_as(loss)
 
@@ -397,3 +411,8 @@ def denorm(image):
             image[:, t, :, :].mul_(s).add_(m)
 
     return image
+
+
+def mask_to_tensor(mask):
+    mask_one_channel = torch.argmax(mask, dim=1)
+    return mask_one_channel

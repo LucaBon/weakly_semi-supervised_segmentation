@@ -63,4 +63,4 @@ SG_PSI = 0.3
 
 RESNET38_WEIGHTS_PATH = './resnet_weights/ilsvrc-cls_rna-a1_cls1000_ep-0001.pth'
 PRETRAIN_EPOCHS = 5
-IMAGE_BATCH_SIZE = 10
+IMAGE_BATCH_SIZE = 20

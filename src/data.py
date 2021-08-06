@@ -147,7 +147,6 @@ class ISPRSTrainDataset(ISPRSDataset):
                 calculate_image_labels(label_p,
                                        threshold_image_labels=THRESHOLD_IMAGE_LABELS)
             data_p = resnet_normalization(data_p)
-        data_pollo = data_p
         # Return the torch.Tensor values
         return (torch.from_numpy(data_p),
                 torch.from_numpy(label_p))
