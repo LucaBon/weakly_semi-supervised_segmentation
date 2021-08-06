@@ -164,7 +164,7 @@ def train_one_epoch_with_image_labels(e,
     for batch_idx, (data, target) in enumerate(train_loader):
         net.train()
         # denorm image
-        data_raw = denorm(data.clone())
+        data_raw = denorm(data)
         data, data_raw, target = data.cuda(), data_raw.cuda(), target.cuda()
         optimizer.zero_grad()
         output_class, cls_fg, masks, mask_logits, pseudo_gt, loss_mask = \

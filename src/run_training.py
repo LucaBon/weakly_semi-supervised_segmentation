@@ -56,7 +56,6 @@ def run_training_with_image_labels(net,
     if loading_vgg_pre_trained:
         net = load_vgg_pretrained(base_lr, net)
 
-    #net = nn.DataParallel(net).cuda()
     optimizer = optim.Adam(net.parameters(), lr=base_lr)
     train_with_image_labels(net=net,
                             optimizer=optimizer,

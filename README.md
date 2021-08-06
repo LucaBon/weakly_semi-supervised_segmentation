@@ -53,6 +53,11 @@ To run the code a **GPU** is necessary.
 **docker** and **nvidia-docker** should be installed.
 
 
+#### Pre-trained weights
+Download ResNet38 weights and put them in folder resnet_weights
+[resnet38](https://download.visinf.tu-darmstadt.de/data/2020-cvpr-araslanov-1-stage-wseg/models/ilsvrc-cls_rna-a1_cls1000_ep-0001.pth)
+
+
 ### Build the image
 From the root folder
 
@@ -79,10 +84,6 @@ Task (ii): N1 pixel level labels + N2 crop-level class labels.
 
 EncDecUnpool network based on VGG16 has been designed. It is inspired by Deconvnet
 "Learning Deconvolution Network for Semantic Segmentation", H. Noh et al.
-
-The network returns two outputs: 
-* one for the pixel-wise classification and
-* one for the multiclass image classification
 
 
 
@@ -139,21 +140,14 @@ class IoUs:
 ---------
 
 **Task (ii)**
-I haven't implemented the solution.
-
-The idea is to train first with pixel-level labels as in Task (i). 
-Evaluate the output of the log_softmax layer giving as input the N2 dataset.
-The output has size [batch_size, n_classes, 200, 200] with values ranging in
-[-inf, 0]. Set a threshold for each class. Using the image labels associated,
-select just the activation maps associated with the classes present in the
-image and use the threshold to build a mask for that class. A criteria should
-be defined to compose together the masks to obtain a pseudo-pixel-level label
-for each sample. Save the pseudo-pixel-level labels and use them to train the
-network. In the end, refine the result training again on the N1 pixel-level
-labels for some epoch.
-
-Eventually, it is possible to freeze the weights for all layers except the 
-dense ones and train the multi-class classifier.
+For this task I trained a ResNet38 on the multiclass classification problem and
+using the method described in "Single-Stage Semantic Segmentation from Image
+Labels" by N. Araslanov et al. I implemented an approach
+that produces semantic masks from image-level annotations and outperforms CAMs
+in terms of segmentation accuracy.
+The semantic masks are then used as pseudo-ground truth for the EncDecUnpool
+segmentation network.
+The results ...
 
 
 

@@ -1,0 +1,1 @@
+Put the pre-trained resnet38 weights in this folder

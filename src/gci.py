@@ -45,7 +45,7 @@ class GCI(nn.Module):
     def forward(self, x, y):
         """Forward pass
         Args:
-            x: shalow features
+            x: shallow features
             y: deep features
         """
 

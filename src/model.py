@@ -181,7 +181,8 @@ class EncDecUnpoolNet(nn.Module):
 
 
 class Flatten(nn.Module):
-    def forward(self, input):
+    @staticmethod
+    def forward(input):
         return input.view(input.size(0), -1)
 
 
@@ -395,7 +396,7 @@ class SoftMaxAE(ResNet38):
         masks_ = masks.view(bs, c, -1)
 
         # classification loss
-        cls_1 = (features * masks_).sum(-1) / (1.0 + masks_.sum(-1))
+        cls_1 = (features * masks_).sum(-1) / (masks_.sum(-1))
 
         # focal penalty loss
         cls_2 = focal_loss(masks_.mean(-1),
@@ -404,6 +405,9 @@ class SoftMaxAE(ResNet38):
 
         # adding the losses together
         # cls = cls_1[:, 1:] + cls_2[:, 1:]
+        print("CLS_1: ", cls_1)
+        print("CLS_2: ", cls_2)
+
         cls = cls_1[:, :] + cls_2[:, :]
 
         if test_mode:
@@ -416,6 +420,7 @@ class SoftMaxAE(ResNet38):
         # foreground stats
         # masks_ = masks_[:, 1:]
         cls_fg = (masks_.mean(-1) * labels).sum(-1) / labels.sum(-1)
+        print("CLS_fg: ", cls_fg)
 
         # mask refinement with PAMR
         masks_dec = self.run_pamr(y_raw, masks.detach())
@@ -429,7 +434,7 @@ class SoftMaxAE(ResNet38):
         loss_mask = balanced_mask_loss_ce(self._mask_logits,
                                           pseudo_gt,
                                           labels)
-
+        print("Loss_mask:", loss_mask)
         return cls, cls_fg, {"cam": masks,
                              "dec": masks_dec}, self._mask_logits, pseudo_gt, loss_mask
 
