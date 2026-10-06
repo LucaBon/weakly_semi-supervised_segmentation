@@ -65,36 +65,44 @@ How the crop tags are used:
 (`scripts/run_all.sh`). Seed 0 split: N1 = areas 2, 29, 31; test = areas 1, 6, 8, 12, 24, 27, 28.
 U-Net ResNet-50, 10k iterations, final checkpoint.
 
+Bold = best method that uses only Task (ii) data (UB excluded).
+
 Full ground truth:
 
 | Experiment | mIoU | mF1 | OA | Impervious | Building | Low veg. | Tree | Car |
 |---|---|---|---|---|---|---|---|---|
-| B1 (N1 only) | 0.710 | 0.828 | 0.844 | 0.737 | 0.812 | 0.638 | 0.732 | **0.629** |
+| B1 (N1 only) | 0.710 | 0.828 | 0.844 | 0.737 | 0.812 | 0.638 | **0.732** | **0.629** |
 | M1 (tag loss) | 0.714 | 0.831 | 0.847 | 0.756 | 0.835 | 0.635 | 0.720 | 0.624 |
 | M2 (M1 + filtering) | 0.715 | 0.831 | 0.847 | 0.758 | 0.835 | 0.636 | 0.720 | 0.625 |
-| M3 (self-training) | **0.726** | **0.839** | **0.855** | **0.768** | **0.847** | **0.657** | 0.731 | 0.624 |
-| M4 (UniMatch-style) | *running* | | | | | | | |
-| UB (N1 + N2 pixels) | *pending* | | | | | | | |
+| M3 (self-training) | **0.726** | **0.839** | 0.855 | 0.768 | 0.847 | **0.657** | 0.731 | 0.624 |
+| M4 (UniMatch-style) | 0.725 | 0.838 | **0.856** | **0.772** | **0.856** | 0.648 | 0.730 | 0.621 |
+| UB (N1 + N2 pixels) | 0.762 | 0.863 | 0.877 | 0.801 | 0.884 | 0.674 | 0.757 | 0.695 |
 | B0 (original net, fixed) | *pending* | | | | | | | |
 
 Eroded ground truth (ISPRS protocol):
 
 | Experiment | mIoU | mF1 | OA | Impervious | Building | Low veg. | Tree | Car |
 |---|---|---|---|---|---|---|---|---|
-| B1 | 0.764 | 0.865 | 0.874 | 0.786 | 0.844 | 0.686 | 0.778 | **0.726** |
+| B1 | 0.764 | 0.865 | 0.874 | 0.786 | 0.844 | 0.686 | **0.778** | **0.726** |
 | M1 | 0.769 | 0.868 | 0.878 | 0.811 | 0.869 | 0.682 | 0.765 | 0.717 |
 | M2 | 0.770 | 0.868 | 0.878 | 0.813 | 0.869 | 0.683 | 0.765 | 0.720 |
-| M3 | **0.781** | **0.875** | **0.887** | **0.823** | **0.881** | **0.706** | 0.778 | 0.715 |
+| M3 | **0.781** | **0.875** | 0.887 | 0.823 | 0.881 | **0.706** | **0.778** | 0.715 |
+| M4 | **0.781** | **0.875** | **0.888** | **0.829** | **0.891** | 0.697 | 0.776 | 0.713 |
+| UB | 0.823 | 0.902 | 0.908 | 0.857 | 0.919 | 0.726 | 0.805 | 0.809 |
 
-Observations so far (one split, so differences below about 0.01 may be noise):
+Observations (one split, so differences below about 0.01 may be noise):
 * **Tag loss alone (M1) barely helps** (+0.004 mIoU), and prediction filtering (M2) adds almost
   nothing. The tags carry little information: a class counts as present with a single pixel, so
   an average cell is tagged with 3.6 of the 5 classes, and 35% of cells are tagged "car".
-* **Self-training (M3) gives the clearest gain:** +0.016 mIoU, mostly on impervious surfaces,
-  buildings and low vegetation. Its pseudo-labels cover 82% of N2 pixels at 0.824 mIoU against
-  the hidden N2 ground truth. That ground truth is used only for this diagnostic, never for
-  training.
-* **Cars do not improve** with any Task (ii) method yet.
+* **Self-training (M3) gives the clearest gain:** +0.016 mIoU, recovering about 30% of the
+  0.052 gap between B1 and the upper bound. The teacher's predicted masks on N2 are corrected
+  with the class labels (absent classes removed) and low-confidence pixels are dropped. The
+  resulting pseudo-labels cover 82% of N2 pixels at 0.824 mIoU against the hidden N2 ground
+  truth. That ground truth is used only for this diagnostic, never for training.
+* **UniMatch-style training (M4) ties with M3** (0.725 against 0.726). It is best on impervious
+  surfaces and buildings, but takes about 38 minutes against 16 for M3.
+* **Cars do not improve** with any Task (ii) method. They are also where the upper bound gains
+  most (0.695 against 0.629), so better use of the weak "car" tags is the main open problem.
 
 **About the previous results (v0.1, mIoU 0.531 / 0.603).** These numbers are not reliable,
 for three reasons:
