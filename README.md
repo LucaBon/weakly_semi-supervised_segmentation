@@ -2,159 +2,155 @@
 
 ### Problem description
 
-Pixel level labels are expensive, but bounding boxes or image level class labels are a lot
-cheaper and more plentiful. Investigate weak supervision methods for making use of these
-additional cheap labels, and attempt to improve accuracy on the pixel level task.
+Pixel-level labels are expensive, but image-level class labels are much cheaper and more
+plentiful. The goal is to use these cheap labels to improve accuracy on the pixel-level task.
 
+Semantic segmentation of the ISPRS **Vaihingen** dataset: 33 aerial IRRG orthophotos
+(about 1900×2500 px at 9 cm) with 6 classes:
 
-N1 = 3 high-resolution images (10%)
-
-N2 = 23 high-resolution images (70%)
-
-N_validation = 7 high-resolution images (20%)
-
-Train a semantic segmentation model on a satellite imagery dataset in a weakly
-supervised setting
-
-
-##### Dataset
-
-There are 33 high-resolution (approx 1500x2000px) aerial images of the town of Vaihingen, Germany.
-Labels are supplied with 1 class per pixel, as follows:
 1. Impervious surfaces - WHITE
 2. Building - BLUE
 3. Low vegetation - TURQUOISE
 4. Tree - GREEN
 5. Car - YELLOW
-6. Clutter/background - RED
+6. Clutter/background - RED (predicted, but excluded from tags and metrics)
 
-Clutter is considered noise and will be neglected
+Split (3 random split seeds, `wsss.data.split_data`):
 
+* N1 = 3 images with pixel-level labels (10%)
+* N2 = 23 images with **crop-level tags** only (70%): each 200×200 cell of a fixed grid is
+  tagged with the classes it contains
+* Test = 7 images (20%)
 
-N1 = 3 high-resolution images (10%)
+Tasks:
 
-N2 = 23 high-resolution images (70%)
+* Task (i): N1 pixel-level labels only
+* Task (ii): N1 pixel-level labels + N2 crop-level tags
 
-N_validation = 7 high-resolution images (20%)
+### Methods
 
+| ID | Data | Method | Config |
+|---|---|---|---|
+| B0 | N1 | Original EncDecUnpool (VGG16-BN SegNet/DeconvNet-like), fixed | `configs/b0_encdec_unpool.yaml` |
+| B1 | N1 | U-Net, ImageNet ResNet-50, CE + Dice, car-aware crop sampling | `configs/b1_unet_r50.yaml` |
+| M1 | N1 + N2 tags | B1 + multi-label loss on LSE-pooled softmax probabilities of each tagged crop | `configs/m1_tags_unet_r50.yaml` |
+| M2 | N1 + N2 tags | M1 + prediction filtering at inference (Bae et al. 2022) | M1 run, `test_filtered` |
+| M3 | N1 + N2 tags | Offline self-training: M1 teacher pseudo-labels N2, restricted to each crop's tags, thresholded; then fine-tuning on N1 | `configs/m3_self_train_unet_r50.yaml` |
+| M4 | N1 + N2 tags | UniMatch-style weak-to-strong consistency (2 strong views + feature perturbation) with tag-constrained pseudo-labels + tag loss | `configs/m4_unimatch_unet_r50.yaml` |
+| UB | N1 + N2 pixels | Upper bound: B1 with the N2 ground truth revealed | `configs/ub_unet_r50.yaml` |
 
-### Environment (see Dockerfile and requirements.txt):
-CUDA 9.2
+How the crop tags are used:
+* **Tag loss (M1).** Per-pixel class probabilities are pooled per crop with Log-Sum-Exp
+  pooling, which sits between average and max pooling. The pooled scores are trained with
+  BCE against the tags. An absent class must have low probability everywhere in the crop;
+  a present class, even a small car, must be confident somewhere.
+* **Tag-constrained pseudo-labels (M3, M4).** Classes absent from the crop's tags are removed
+  from the teacher's softmax, then low-confidence pixels are ignored. The car threshold is lower.
+* **Prediction filtering (M2).** At test time no tags are available, so classes whose pooled
+  score in a window is below 0.5 are suppressed.
 
-python 3.6
+### Evaluation protocol
 
-torch 1.5.0
-
-torchvision 0.6.0 
-
-
-To run the code a **GPU** is necessary.
-
-**docker** and **nvidia-docker** should be installed.
-
-
-### Build the image
-From the root folder
-
-* ```docker build -t weakly_sup_seg .```
-
-
-### Run the image
-
-* ```docker run --rm -it -v "path_to_project":/app -v "path_to_images":/images - "path_to_labels":/labels weakly_sup_seg bash```
-
-### Training
-Inside docker container run:
-
-* ```python3 run_training.py``` (it will execute `training_task_1` method )
-
-
-### Task
-Train and compare semantic segmentation networks, using the following data:
-
-Task (i): N1 pixel level labels;
-Task (ii): N1 pixel level labels + N2 crop-level class labels.
-
-### Solution description
-
-EncDecUnpool network based on VGG16 has been designed. It is inspired by Deconvnet
-"Learning Deconvolution Network for Semantic Segmentation", H. Noh et al.
-
-The network returns two outputs: 
-* one for the pixel-wise classification and
-* one for the multiclass image classification
-
-
-
+* The **final checkpoint** is evaluated after a fixed iteration budget. No model selection on
+  the test set.
+* Whole test images, sliding window (512 px, stride 256), every pixel included.
+* Metrics come from one confusion matrix accumulated over the test set: per-class IoU/F1,
+  mIoU, mF1, OA, over the 5 classes with clutter excluded. They are computed on both the
+  full and the **eroded** ground truth (ISPRS protocol).
+* Reported as mean ± std over split seeds 0, 1, 2 (`scripts/aggregate_results.py`).
 
 ### Results
 
-**Task (i)**
+To be filled in by `scripts/run_all.sh` (mean ± std over 3 splits):
 
-To reproduce the training run `training_task_1` method in run_training.py script.
- 
-The weights that gave the best segmentation results on test set are saved in 
-`EncDecUnpool_pixel_labels_epoch13_loss0.692428.pth`. The checkpoint can be 
-downloaded from: [download checkpoint](https://anonfiles.com/J3rf7e91ud/EncDecUnpool_pixel_labels_epoch13_loss0.692428_pth)
-The performances have been evaluated in terms of Intersection over Union. 
+| Experiment | mIoU | mF1 | OA | Car IoU |
+|---|---|---|---|---|
+| B0 | | | | |
+| B1 | | | | |
+| M1 | | | | |
+| M2 | | | | |
+| M3 | | | | |
+| M4 | | | | |
+| UB | | | | |
 
+**About the previous results (v0.1, mIoU 0.531 / 0.603).** These numbers are not reliable,
+for three reasons:
+1. The VGG16-BN weights were matched to the model by key *position*. The checkpoint has no
+   `num_batches_tracked` keys, so keys misaligned after the first layer. The 38 resulting
+   size-mismatch errors were swallowed by a bare `except`, and only `conv1_1` received
+   ImageNet weights.
+2. The best epoch was selected on the test set.
+3. mIoU was averaged over batches instead of computed from an accumulated confusion matrix.
 
-On test set (without dropout):
+### Setup
 
-mean IoU: 0.531
+Requires an NVIDIA GPU (a 6 GB laptop GPU is enough: M4 peaks at about 2.3 GiB with batch 4+4
+and AMP) and [uv](https://docs.astral.sh/uv/).
 
-class IoUs: 
-* "Impervious surfaces": 0.672
-* "Building": 0.709
-* "Low vegetation": 0.424
-* "Tree": 0.583
-* "Car": 0.265
+```bash
+uv sync                 # Python 3.12, torch 2.x
+uv run pytest           # unit + smoke tests on synthetic data
+```
 
-There is over-fitting during training, but I didn't have time to do other experiments. 
-Dropout can be added to prevent it. The performances on class "Car" are lower
-since it is less represented. To address this problem I weighted more the error
-on class car in the loss function but was not enough. A sampling strategy that
-favours tiles containing cars can be implemented.
+Docker: `docker build -t wsss .` then
+`docker run --gpus all --rm -it -v "$PWD/data":/app/data -v "$PWD/runs":/app/runs wsss python -m wsss.train --config configs/b1_unet_r50.yaml`
 
------------
+### Data
 
-A Dropout layer has been added at every block in the decoder layers.
-A new training has been performed. The weights that gave the best segmentation results
-on test set are saved in `EncDecUnpool_pixel_labels_epoch19_loss_0.506415`. The checkpoint can be 
-downloaded from: [download checkpoint](https://anonfiles.com/ffecW294ud/EncDecUnpool_pixel_labels_epoch19_loss_0_506415)
-The over-fitting has been reduced but still present. The performances on test set 
-increased:
+1. Request the dataset from the
+   [ISPRS 2D Semantic Labeling – Vaihingen](https://www.isprs.org/resources/datasets/benchmarks/UrbanSemLab/2d-sem-label-vaihingen.aspx)
+   page. Download the orthophotos (`top/`), the complete ground truth and the eroded complete
+   ground truth.
+2. Convert them to the layout used here (`data/vaihingen/{images,labels,labels_eroded}`):
 
-On test set (with dropout)
+```bash
+uv run python scripts/prepare_vaihingen.py \
+    --images <raw>/top \
+    --labels <raw>/ISPRS_semantic_labeling_Vaihingen_ground_truth_COMPLETE \
+    --eroded <raw>/ISPRS_semantic_labeling_Vaihingen_ground_truth_eroded_COMPLETE \
+    --out data/vaihingen
+```
 
-Mean IoU: 0.603
+### Training and evaluation
 
-class IoUs: 
-* "Impervious surfaces": 0.718
-* "Building": 0.772
-* "Low vegetation": 0.491
-* "Tree": 0.654
-* "Car": 0.378
+```bash
+uv run python -m wsss.train --config configs/b1_unet_r50.yaml --seed 0
+# M3 needs the M1 model of the same seed as teacher
+uv run python -m wsss.train --config configs/m1_tags_unet_r50.yaml --seed 0
+uv run python -m wsss.train --config configs/m3_self_train_unet_r50.yaml --seed 0
+# everything, 3 seeds, then the results tables
+scripts/run_all.sh
+# re-evaluate a checkpoint
+uv run python -m wsss.evaluate --config configs/m1_tags_unet_r50.yaml \
+    --checkpoint runs/m1_tags_unet_r50/seed0/model.pt --seed 0 --filter-threshold 0.5
+```
 
----------
+Outputs are written to `runs/<name>/seed<k>/`: `model.pt`, `results.json` (config, split,
+metrics and pseudo-label quality) and TensorBoard logs. Hyper-parameters should be tuned on a
+separate dev split (`--seed 99`), never on the reported seeds.
 
-**Task (ii)**
-I haven't implemented the solution.
+### Code layout
 
-The idea is to train first with pixel-level labels as in Task (i). 
-Evaluate the output of the log_softmax layer giving as input the N2 dataset.
-The output has size [batch_size, n_classes, 200, 200] with values ranging in
-[-inf, 0]. Set a threshold for each class. Using the image labels associated,
-select just the activation maps associated with the classes present in the
-image and use the threshold to build a mask for that class. A criteria should
-be defined to compose together the masks to obtain a pseudo-pixel-level label
-for each sample. Save the pseudo-pixel-level labels and use them to train the
-network. In the end, refine the result training again on the N1 pixel-level
-labels for some epoch.
+```
+src/wsss/
+  config.py        defaults + YAML configs
+  data.py          splits, random pixel crops (car-aware), fixed-grid tag cells
+  augment.py       dihedral transforms, strong photometric views, CutMix
+  models/          EncDecUnpool (VGG16-BN) and segmentation_models_pytorch wrappers
+  losses.py        CE + Dice, class weights, LSE tag pooling and tag loss
+  pseudo_label.py  tag-constrained, thresholded pseudo-labels
+  inference.py     sliding-window prediction, prediction filtering
+  metrics.py       accumulated confusion matrix (IoU, F1, OA, kappa)
+  train.py         all methods
+  evaluate.py      test-set evaluation (full + eroded GT)
+```
 
-Eventually, it is possible to freeze the weights for all layers except the 
-dense ones and train the multi-class classifier.
+### References
 
-
-
-
+* Papandreou et al., *Weakly- and Semi-Supervised Learning of a DCNN for Semantic Image Segmentation*, ICCV 2015
+* Pinheiro & Collobert, *From Image-level to Pixel-level Labeling with Convolutional Networks*, CVPR 2015 (LSE pooling)
+* Ouali et al., *Semi-Supervised Semantic Segmentation with Cross-Consistency Training*, CVPR 2020
+* Bae et al., *One Weird Trick to Improve Your Semi-Weakly Supervised Semantic Segmentation Model*, IJCAI 2022
+* Yang et al., *Revisiting Weak-to-Strong Consistency in Semi-Supervised Semantic Segmentation* (UniMatch), CVPR 2023
+* Noh et al., *Learning Deconvolution Network for Semantic Segmentation*, ICCV 2015
+* Wang et al., *UNetFormer*, ISPRS J. P&RS 2022 (fully supervised Vaihingen reference)

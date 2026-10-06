@@ -1,0 +1,6 @@
+# B0: original EncDecUnpool (VGG16-BN SegNet-like), N1 pixel labels only (Task i),
+# with VGG weights loaded correctly and the encoder trained at lr / 2
+name: b0_encdec_unpool
+method: supervised
+model: {architecture: encdec_unpool, pretrained: true, dropout: 0.5}
+train: {optimizer: adam, lr: 1.0e-3, encoder_lr_mult: 0.5, iters: 10000, batch_size: 8}

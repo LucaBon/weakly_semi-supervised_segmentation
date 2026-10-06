@@ -1,34 +1,14 @@
-FROM nvcr.io/nvidia/cuda:9.2-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
 
-RUN apt-get update && apt-get -yq dist-upgrade \
- && apt-get install -yq --no-install-recommends \
-    ca-certificates \
-    python3-pip \
-    python3.6-dev \
-    python3.6 \
-    curl \
-    git \
-    build-essential \
-    cmake \
-    libopenblas-dev \
-    liblapack-dev \
-    pkg-config \
-    libx11-dev \
-    libatlas-base-dev \
-    libgtk-3-dev \
-    libboost-python-dev \
-    wget \
- && curl https://bootstrap.pypa.io/get-pip.py | python3.6 \
- # Cleaning after installations
- && apt-get clean \
+RUN apt-get update && apt-get install -yq --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-RUN pip3 install --upgrade pip==20.2.2 setuptools==49.6.0
-
-RUN mkdir /app
 WORKDIR /app
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-install-project
+COPY . .
+RUN uv sync --frozen
 
-ADD requirements.txt .
-
-RUN pip3 install torch==1.5.0+cu92 torchvision==0.6.0+cu92 -f https://download.pytorch.org/whl/torch_stable.html
-RUN pip3 install -r requirements.txt
+ENTRYPOINT ["uv", "run"]
+CMD ["python", "-m", "wsss.train", "--help"]

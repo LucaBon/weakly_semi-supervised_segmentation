@@ -1,0 +1,8 @@
+# M1: N1 pixel labels + LSE-pooled tag loss on N2 crops (Task ii)
+# M2 (prediction filtering, Bae et al. 2022) is evaluated on the same model
+name: m1_tags_unet_r50
+method: tags
+model: {architecture: unet, encoder: resnet50, pretrained: true}
+train: {batch_size: 4, unlabeled_batch_size: 4}
+tags: {weight: 0.5}
+eval: {filter_threshold: 0.5}

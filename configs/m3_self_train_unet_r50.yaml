@@ -1,0 +1,11 @@
+# M3: offline self-training. The M1 model is the teacher: its predictions on N2,
+# restricted to each crop's tags and thresholded, are the pseudo-labels.
+# Then fine-tuning on N1 only. No tag loss here, so M3 isolates the effect of pseudo-labels.
+name: m3_self_train_unet_r50
+method: self_train
+model: {architecture: unet, encoder: resnet50, pretrained: true}
+train: {batch_size: 4, unlabeled_batch_size: 4}
+tags: {weight: 0.0}
+pseudo: {teacher: "runs/m1_tags_unet_r50/seed{seed}/model.pt", threshold: 0.9,
+         car_threshold: 0.7, finetune_iters: 1000}
+eval: {filter_threshold: 0.5}
