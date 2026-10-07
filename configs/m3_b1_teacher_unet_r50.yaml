@@ -1,0 +1,11 @@
+# M3-B1: as M3, but the teacher is B1, trained on N1 only (the original Task (ii) idea):
+# its predicted masks on N2, corrected with the class labels and thresholded, are the
+# pseudo-labels. Then fine-tuning on N1 only. No tag loss.
+name: m3_b1_teacher_unet_r50
+method: self_train
+model: {architecture: unet, encoder: resnet50, pretrained: true}
+train: {batch_size: 4, unlabeled_batch_size: 4}
+tags: {weight: 0.0}
+pseudo: {teacher: "runs/b1_unet_r50/seed{seed}/model.pt", threshold: 0.9,
+         car_threshold: 0.7, finetune_iters: 1000}
+eval: {filter_threshold: 0.5}

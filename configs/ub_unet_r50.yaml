@@ -1,0 +1,4 @@
+# UB: upper bound, pixel labels of N1 + N2 (the N2 ground truth is revealed)
+name: ub_unet_r50
+method: upper_bound
+model: {architecture: unet, encoder: resnet50, pretrained: true}

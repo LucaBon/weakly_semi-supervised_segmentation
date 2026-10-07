@@ -1,0 +1,4 @@
+# B1: modern supervised baseline on N1 pixel labels only (Task i)
+name: b1_unet_r50
+method: supervised
+model: {architecture: unet, encoder: resnet50, pretrained: true}
