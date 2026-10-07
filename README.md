@@ -222,6 +222,46 @@ generalises better, and cars overfit the most. These numbers do not show whether
 earlier would help: only final checkpoints are kept, and the test set is not tracked during
 training. Learning curves on the dev split (seed 99) would answer that.
 
+#### Future work: improving the car class
+
+Car error analysis of M3 over the 3 test splits (21 images, about 1,800 cars):
+
+| Measure | Value |
+|---|---|
+| Car IoU | 0.661 |
+| Precision | 0.730 |
+| Recall | 0.875 |
+| Car errors on the 2–3 px boundary band | 55% of missed pixels, 57% of false pixels |
+| Normal-size cars (300–2,000 px) detected | 92% |
+
+Findings:
+* **The model over-predicts cars**, rather than missing them. Precision is the weak side.
+* **The confusion is almost only with road:** 88% of false car pixels and 80% of missed car pixels
+  are impervious surfaces.
+* **The predicted cars are slightly too large.** More than half of the car error sits on the
+  boundary band, which covers only about 9% of all pixels. This is also why car IoU rises from
+  0.66 to 0.75 on the eroded ground truth.
+
+Likely cause: the training setup stacks several biases towards cars. These are a class weight of
+8.3, the Dice loss weighting every class equally, 30% of crops centred on a car, and a lower
+pseudo-label threshold for cars (0.7 / 0.8 instead of 0.9 / 0.95).
+
+Two options to try:
+1. **Calibrate the car score after training (no retraining).** Subtract a constant from the car
+   logit at inference. Choose it on the dev split (seed 99), never on the test splits; this needs
+   B1 and M3 trained on seed 99 first (about 35 minutes). It measures how much of the car error is
+   only the bias.
+2. **Retrain with less car bias.**
+   * Cap the class weights at about 3 (`losses.class_weights_from_labels`, `max_weight`).
+   * Use the same pseudo-label threshold for cars as for the other classes (`pseudo.car_threshold`,
+     `unimatch.car_threshold`).
+   * Lower the share of car-centred crops to about 15% (`train.car_probability`).
+
+   Then re-run B1, M1 and M3 on the 3 seeds (about 2.5 hours).
+
+Adding more car pseudo-labels or copy-pasting cars would not help: they raise recall, which is
+already high.
+
 **About the previous results (v0.1, mIoU 0.531 / 0.603).** These numbers are not reliable,
 for three reasons:
 1. The VGG16-BN weights were matched to the model by key *position*. The checkpoint has no
