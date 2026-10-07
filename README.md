@@ -36,6 +36,7 @@ Tasks:
 | M1 | N1 + N2 tags | B1 + multi-label loss on LSE-pooled softmax probabilities of each tagged crop | `configs/m1_tags_unet_r50.yaml` |
 | M2 | N1 + N2 tags | M1 + prediction filtering at inference (Bae et al. 2022) | M1 run, `test_filtered` |
 | M3 | N1 + N2 tags | Offline self-training: M1 teacher pseudo-labels N2, restricted to each crop's tags, thresholded; then fine-tuning on N1 | `configs/m3_self_train_unet_r50.yaml` |
+| M3-B1 | N1 + N2 tags | As M3, but the teacher is B1 (N1 only): the original Task (ii) idea | `configs/m3_b1_teacher_unet_r50.yaml` |
 | M4 | N1 + N2 tags | UniMatch-style weak-to-strong consistency (2 strong views + feature perturbation) with tag-constrained pseudo-labels + tag loss | `configs/m4_unimatch_unet_r50.yaml` |
 | UB | N1 + N2 pixels | Upper bound: B1 with the N2 ground truth revealed | `configs/ub_unet_r50.yaml` |
 
@@ -71,38 +72,76 @@ Full ground truth:
 
 | Experiment | mIoU | mF1 | OA | Impervious | Building | Low veg. | Tree | Car |
 |---|---|---|---|---|---|---|---|---|
-| B1 (N1 only) | 0.710 | 0.828 | 0.844 | 0.737 | 0.812 | 0.638 | **0.732** | **0.629** |
+| B0 (original net, fixed) | 0.669 | 0.799 | 0.819 | 0.707 | 0.774 | 0.599 | 0.716 | 0.549 |
+| B1 (N1 only) | 0.710 | 0.828 | 0.844 | 0.737 | 0.812 | 0.638 | 0.732 | **0.629** |
 | M1 (tag loss) | 0.714 | 0.831 | 0.847 | 0.756 | 0.835 | 0.635 | 0.720 | 0.624 |
 | M2 (M1 + filtering) | 0.715 | 0.831 | 0.847 | 0.758 | 0.835 | 0.636 | 0.720 | 0.625 |
-| M3 (self-training) | **0.726** | **0.839** | 0.855 | 0.768 | 0.847 | **0.657** | 0.731 | 0.624 |
+| M3 (self-training, M1 teacher) | **0.726** | **0.839** | 0.855 | 0.768 | 0.847 | 0.657 | 0.731 | 0.624 |
+| M3-B1 (self-training, B1 teacher) | 0.721 | 0.836 | 0.852 | 0.748 | 0.825 | **0.659** | **0.744** | 0.628 |
 | M4 (UniMatch-style) | 0.725 | 0.838 | **0.856** | **0.772** | **0.856** | 0.648 | 0.730 | 0.621 |
 | UB (N1 + N2 pixels) | 0.762 | 0.863 | 0.877 | 0.801 | 0.884 | 0.674 | 0.757 | 0.695 |
-| B0 (original net, fixed) | *pending* | | | | | | | |
 
 Eroded ground truth (ISPRS protocol):
 
 | Experiment | mIoU | mF1 | OA | Impervious | Building | Low veg. | Tree | Car |
 |---|---|---|---|---|---|---|---|---|
-| B1 | 0.764 | 0.865 | 0.874 | 0.786 | 0.844 | 0.686 | **0.778** | **0.726** |
+| B0 | 0.716 | 0.832 | 0.849 | 0.756 | 0.805 | 0.644 | 0.758 | 0.617 |
+| B1 | 0.764 | 0.865 | 0.874 | 0.786 | 0.844 | 0.686 | 0.778 | 0.726 |
 | M1 | 0.769 | 0.868 | 0.878 | 0.811 | 0.869 | 0.682 | 0.765 | 0.717 |
 | M2 | 0.770 | 0.868 | 0.878 | 0.813 | 0.869 | 0.683 | 0.765 | 0.720 |
-| M3 | **0.781** | **0.875** | 0.887 | 0.823 | 0.881 | **0.706** | **0.778** | 0.715 |
+| M3 | **0.781** | **0.875** | 0.887 | 0.823 | 0.881 | 0.706 | 0.778 | 0.715 |
+| M3-B1 | 0.776 | 0.873 | 0.882 | 0.797 | 0.857 | **0.709** | **0.791** | **0.728** |
 | M4 | **0.781** | **0.875** | **0.888** | **0.829** | **0.891** | 0.697 | 0.776 | 0.713 |
 | UB | 0.823 | 0.902 | 0.908 | 0.857 | 0.919 | 0.726 | 0.805 | 0.809 |
 
 Observations (one split, so differences below about 0.01 may be noise):
-* **Tag loss alone (M1) barely helps** (+0.004 mIoU), and prediction filtering (M2) adds almost
-  nothing. The tags carry little information: a class counts as present with a single pixel, so
-  an average cell is tagged with 3.6 of the 5 classes, and 35% of cells are tagged "car".
-* **Self-training (M3) gives the clearest gain:** +0.016 mIoU, recovering about 30% of the
-  0.052 gap between B1 and the upper bound. The teacher's predicted masks on N2 are corrected
-  with the class labels (absent classes removed) and low-confidence pixels are dropped. The
-  resulting pseudo-labels cover 82% of N2 pixels at 0.824 mIoU against the hidden N2 ground
-  truth. That ground truth is used only for this diagnostic, never for training.
+* **Architecture matters most at this label budget.** B0, the original network with the fixed
+  VGG loading, reaches 0.669 mIoU (0.603 in v0.1). B1's U-Net with a ResNet-50 encoder adds
+  +0.041.
+* **Tag loss alone (M1) barely helps** (+0.004 mIoU), and prediction filtering (M2) adds at
+  most 0.001 to any model. The tags carry little information: a class counts as present with a
+  single pixel, so an average cell is tagged with 3.6 of the 5 classes, and 35% of cells are
+  tagged "car".
+* **Self-training gives the clearest gain.** The teacher's predicted masks on N2 are corrected
+  with the class labels (absent classes removed), and low-confidence pixels are dropped.
+  * With M1 as teacher (M3): +0.016 mIoU, recovering about 30% of the 0.052 gap between B1
+    and the upper bound.
+  * With B1 as teacher (M3-B1, the original idea): +0.011. It is best on low vegetation and
+    trees, and it is the only Task (ii) method that does not lose ground on cars.
 * **UniMatch-style training (M4) ties with M3** (0.725 against 0.726). It is best on impervious
   surfaces and buildings, but takes about 38 minutes against 16 for M3.
-* **Cars do not improve** with any Task (ii) method. They are also where the upper bound gains
-  most (0.695 against 0.629), so better use of the weak "car" tags is the main open problem.
+* **Cars are the main open problem.** No Task (ii) method improves them, and the upper bound
+  gains most there (0.695 against 0.629). The tag loss slightly hurts cars in every model that
+  uses it.
+
+#### Pseudo-label quality on N2
+
+`scripts/pseudo_label_quality.py` scores the N2 pseudo-labels of a teacher against the hidden
+N2 ground truth (diagnostic only, never used for training). Seed 0, mIoU on the kept pixels:
+
+| Teacher | Raw masks | + class-label correction | + confidence threshold | Both (used by M3) |
+|---|---|---|---|---|
+| B1 (N1 only) | 0.690 | 0.715 | 0.765 (85% kept) | 0.787 (86% kept) |
+| M1 (N1 + tag loss) | 0.718 | 0.729 | 0.816 (81% kept) | 0.824 (82% kept) |
+
+The class-label correction alone adds +0.025 (B1) and +0.011 (M1) at full coverage. For B1 it
+gives the largest gain on cars (0.612 → 0.648). The confidence threshold adds the most
+(+0.08 to +0.10).
+
+#### Overfitting
+
+The N1-only models are scored on their 3 training images and on the 23 N2 images, which are
+fully held out for them (seed 0, final checkpoints):
+
+| Model | N1 (train) | N2 (held-out) | Test |
+|---|---|---|---|
+| B0 EncDecUnpool | 0.819 (car 0.703) | 0.653 (car 0.539) | 0.669 |
+| B1 U-Net R50 | 0.919 (car 0.850) | 0.690 (car 0.612) | 0.710 |
+
+Both overfit the 3 training images. B1 has the larger gap (0.23 against 0.17) but still
+generalises better, and cars overfit the most. These numbers do not show whether stopping
+earlier would help: only final checkpoints are kept, and the test set is not tracked during
+training. Learning curves on the dev split (seed 99) would answer that.
 
 **About the previous results (v0.1, mIoU 0.531 / 0.603).** These numbers are not reliable,
 for three reasons:

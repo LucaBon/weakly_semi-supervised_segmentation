@@ -4,7 +4,7 @@ set -euo pipefail
 SEEDS="${SEEDS:-0 1 2}"
 for seed in $SEEDS; do
   for config in b0_encdec_unpool b1_unet_r50 ub_unet_r50 m1_tags_unet_r50 \
-                m3_self_train_unet_r50 m4_unimatch_unet_r50; do
+                m3_self_train_unet_r50 m3_b1_teacher_unet_r50 m4_unimatch_unet_r50; do
     uv run python -m wsss.train --config "configs/${config}.yaml" --seed "$seed"
   done
 done
