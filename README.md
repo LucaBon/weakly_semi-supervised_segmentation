@@ -40,15 +40,69 @@ Tasks:
 | M4 | N1 + N2 tags | UniMatch-style weak-to-strong consistency (2 strong views + feature perturbation) with tag-constrained pseudo-labels + tag loss | `configs/m4_unimatch_unet_r50.yaml` |
 | UB | N1 + N2 pixels | Upper bound: B1 with the N2 ground truth revealed | `configs/ub_unet_r50.yaml` |
 
-How the crop tags are used:
-* **Tag loss (M1).** Per-pixel class probabilities are pooled per crop with Log-Sum-Exp
-  pooling, which sits between average and max pooling. The pooled scores are trained with
-  BCE against the tags. An absent class must have low probability everywhere in the crop;
-  a present class, even a small car, must be confident somewhere.
-* **Tag-constrained pseudo-labels (M3, M4).** Classes absent from the crop's tags are removed
-  from the teacher's softmax, then low-confidence pixels are ignored. The car threshold is lower.
-* **Prediction filtering (M2).** At test time no tags are available, so classes whose pooled
-  score in a window is below 0.5 are suppressed.
+### Solutions implemented
+
+All models output 6 classes. Clutter is predicted but excluded from the tags and the metrics.
+
+**How the crop-level labels are simulated.** Every N2 image is cut into a fixed, non-overlapping
+grid of 200×200 cells (edge cells are smaller). Each cell gets a 5-class tag vector, computed
+once from the hidden ground truth: a class is present if at least one pixel of it is in the
+cell, as in v0.1. After that, the N2 pixel labels are never used for training. Tags are not
+recomputed on random crops, which would leak finer location information.
+
+**B0 – original network, fixed.** The v0.1 EncDecUnpool network (VGG16-BN encoder, SegNet-style
+decoder using the pooling indices, dropout in the decoder), trained on N1 only. Two fixes:
+* the ImageNet weights are mapped layer by layer and every encoder tensor is checked; in v0.1
+  only the first convolution was loaded correctly;
+* BatchNorm now sits between convolution and ReLU, as in VGG16-BN.
+
+The encoder is trained at half the learning rate.
+
+**B1 – modern supervised baseline.** U-Net with an ImageNet ResNet-50 encoder
+(`segmentation_models_pytorch`), trained on N1 only. Training uses:
+* 256 px random crops with the 8 flip/rotation transforms;
+* car-aware sampling: 30% of the crops are centred on a car;
+* cross-entropy with median-frequency class weights, plus Dice loss;
+* AdamW with a poly schedule, mixed precision, 10k iterations.
+
+**M1 – tag loss.** B1 plus N2 cells in every batch. The network's per-pixel class probabilities
+in each cell are pooled with Log-Sum-Exp pooling (between average and max pooling) into one
+presence score per class. The scores are trained against the tags with binary cross-entropy.
+An absent class must then have low probability everywhere in the cell; a present one must be
+confident somewhere.
+
+**M2 – prediction filtering** (Bae et al. 2022). At test time no tags exist. The pooled
+presence scores of the M1 model are computed on 200 px cells, and classes scoring below 0.5 are
+suppressed.
+
+**M3 – offline self-training with corrected masks.** This is the Task (ii) idea of v0.1:
+1. A teacher predicts every N2 image (sliding window).
+2. In each cell, classes absent from the tags are removed from the prediction, and their
+   probability goes to the classes that are present.
+3. Pixels below a confidence threshold (0.9; 0.7 for cars) are ignored.
+4. A new U-Net is trained on N1 plus these pseudo-labels, then fine-tuned on N1 alone
+   (1k iterations).
+
+**M3** uses M1 as teacher. **M3-B1** uses B1, the model trained on N1 only, exactly as v0.1
+proposed.
+
+![Pseudo-label construction](figures/pseudo_label_example.png)
+
+*The steps on one N2 cell, with B1 as teacher. The teacher predicts low vegetation (cyan), which
+the tags say is absent; removing it fixes most of the error, and the threshold drops the uncertain
+borders (grey).*
+
+**M4 – online weak-to-strong consistency** (UniMatch, Yang et al. 2023). Pseudo-labels are made
+by the model being trained, at every step, with the same tag correction and threshold (0.95;
+0.8 for cars). The model must reproduce them on:
+* two strongly perturbed views of each N2 cell (colour jitter, blur, CutMix between cells);
+* a view with dropout applied to the encoder features.
+
+The M1 tag loss is kept. Pseudo-labels improve as the model improves, at about 2.4× the
+training time of M3.
+
+**UB – upper bound.** B1 trained with the full pixel labels of N1 and N2. It shows the best
+result reachable if N2 were fully annotated.
 
 ### Evaluation protocol
 
@@ -62,62 +116,87 @@ How the crop tags are used:
 
 ### Results
 
-**Preliminary: split seed 0 only.** The final table will be mean ± std over seeds 0, 1, 2
-(`scripts/run_all.sh`). Seed 0 split: N1 = areas 2, 29, 31; test = areas 1, 6, 8, 12, 24, 27, 28.
-U-Net ResNet-50, 10k iterations, final checkpoint.
-
+Mean ± std over split seeds 0, 1, 2. Each seed draws different N1 / N2 / test images, so the std
+mostly measures how hard the split is; the per-seed gains below are the fairer comparison.
+U-Net ResNet-50 (B0: EncDecUnpool), 10k iterations, final checkpoint, 7 test images per seed.
 Bold = best method that uses only Task (ii) data (UB excluded).
 
-Full ground truth:
+* Seed 0: N1 = areas 2, 29, 31; test = areas 1, 6, 8, 12, 24, 27, 28
+* Seed 1: N1 = areas 5, 10, 38; test = areas 3, 8, 12, 21, 27, 32, 35
+* Seed 2: N1 = areas 3, 4, 6; test = areas 1, 20, 22, 24, 33, 35, 38
+
+Full ground truth (mIoU, mF1, OA and per-class IoU):
 
 | Experiment | mIoU | mF1 | OA | Impervious | Building | Low veg. | Tree | Car |
 |---|---|---|---|---|---|---|---|---|
-| B0 (original net, fixed) | 0.669 | 0.799 | 0.819 | 0.707 | 0.774 | 0.599 | 0.716 | 0.549 |
-| B1 (N1 only) | 0.710 | 0.828 | 0.844 | 0.737 | 0.812 | 0.638 | 0.732 | **0.629** |
-| M1 (tag loss) | 0.714 | 0.831 | 0.847 | 0.756 | 0.835 | 0.635 | 0.720 | 0.624 |
-| M2 (M1 + filtering) | 0.715 | 0.831 | 0.847 | 0.758 | 0.835 | 0.636 | 0.720 | 0.625 |
-| M3 (self-training, M1 teacher) | **0.726** | **0.839** | 0.855 | 0.768 | 0.847 | 0.657 | 0.731 | 0.624 |
-| M3-B1 (self-training, B1 teacher) | 0.721 | 0.836 | 0.852 | 0.748 | 0.825 | **0.659** | **0.744** | 0.628 |
-| M4 (UniMatch-style) | 0.725 | 0.838 | **0.856** | **0.772** | **0.856** | 0.648 | 0.730 | 0.621 |
-| UB (N1 + N2 pixels) | 0.762 | 0.863 | 0.877 | 0.801 | 0.884 | 0.674 | 0.757 | 0.695 |
+| B0 (original net, fixed) | 0.693 ± 0.028 | 0.815 ± 0.019 | 0.831 ± 0.018 | 0.753 ± 0.036 | 0.799 ± 0.035 | 0.584 ± 0.023 | 0.715 ± 0.012 | 0.614 ± 0.057 |
+| B1 (N1 only) | 0.714 ± 0.021 | 0.831 ± 0.014 | 0.844 ± 0.014 | 0.767 ± 0.025 | 0.817 ± 0.027 | 0.610 ± 0.025 | 0.725 ± 0.013 | 0.653 ± 0.040 |
+| M1 (tag loss) | 0.724 ± 0.015 | 0.838 ± 0.010 | 0.851 ± 0.009 | 0.776 ± 0.019 | 0.833 ± 0.017 | 0.634 ± 0.004 | 0.723 ± 0.009 | 0.654 ± 0.038 |
+| M2 (M1 + filtering) | 0.725 ± 0.015 | 0.838 ± 0.010 | 0.851 ± 0.009 | 0.777 ± 0.019 | 0.833 ± 0.017 | 0.635 ± 0.004 | 0.723 ± 0.009 | 0.654 ± 0.038 |
+| M3-B1 (self-training, B1 teacher) | 0.732 ± 0.015 | 0.843 ± 0.010 | 0.856 ± 0.009 | 0.780 ± 0.025 | 0.845 ± 0.017 | 0.636 ± 0.017 | 0.735 ± 0.013 | **0.661 ± 0.043** |
+| M3 (self-training, M1 teacher) | 0.738 ± 0.016 | 0.847 ± 0.010 | 0.861 ± 0.009 | **0.793 ± 0.021** | 0.857 ± 0.014 | 0.651 ± 0.008 | 0.733 ± 0.008 | 0.659 ± 0.047 |
+| M4 (UniMatch-style) | **0.742 ± 0.012** | **0.849 ± 0.008** | **0.864 ± 0.006** | **0.793 ± 0.017** | **0.862 ± 0.006** | **0.657 ± 0.021** | **0.738 ± 0.007** | 0.658 ± 0.040 |
+| UB (N1 + N2 pixels) | 0.765 ± 0.006 | 0.864 ± 0.003 | 0.879 ± 0.002 | 0.817 ± 0.014 | 0.888 ± 0.008 | 0.676 ± 0.018 | 0.757 ± 0.002 | 0.688 ± 0.031 |
 
 Eroded ground truth (ISPRS protocol):
 
 | Experiment | mIoU | mF1 | OA | Impervious | Building | Low veg. | Tree | Car |
 |---|---|---|---|---|---|---|---|---|
-| B0 | 0.716 | 0.832 | 0.849 | 0.756 | 0.805 | 0.644 | 0.758 | 0.617 |
-| B1 | 0.764 | 0.865 | 0.874 | 0.786 | 0.844 | 0.686 | 0.778 | 0.726 |
-| M1 | 0.769 | 0.868 | 0.878 | 0.811 | 0.869 | 0.682 | 0.765 | 0.717 |
-| M2 | 0.770 | 0.868 | 0.878 | 0.813 | 0.869 | 0.683 | 0.765 | 0.720 |
-| M3 | **0.781** | **0.875** | 0.887 | 0.823 | 0.881 | 0.706 | 0.778 | 0.715 |
-| M3-B1 | 0.776 | 0.873 | 0.882 | 0.797 | 0.857 | **0.709** | **0.791** | **0.728** |
-| M4 | **0.781** | **0.875** | **0.888** | **0.829** | **0.891** | 0.697 | 0.776 | 0.713 |
-| UB | 0.823 | 0.902 | 0.908 | 0.857 | 0.919 | 0.726 | 0.805 | 0.809 |
+| B0 | 0.744 ± 0.034 | 0.850 ± 0.022 | 0.861 ± 0.019 | 0.803 ± 0.036 | 0.829 ± 0.037 | 0.629 ± 0.029 | 0.761 ± 0.016 | 0.698 ± 0.075 |
+| B1 | 0.768 ± 0.026 | 0.867 ± 0.016 | 0.874 ± 0.015 | 0.815 ± 0.024 | 0.847 ± 0.028 | 0.657 ± 0.029 | 0.773 ± 0.017 | 0.746 ± 0.052 |
+| M1 | 0.780 ± 0.019 | 0.875 ± 0.012 | 0.881 ± 0.010 | 0.827 ± 0.017 | 0.866 ± 0.019 | 0.684 ± 0.001 | 0.772 ± 0.012 | 0.750 ± 0.050 |
+| M2 | 0.780 ± 0.019 | 0.875 ± 0.011 | 0.882 ± 0.010 | 0.828 ± 0.016 | 0.866 ± 0.018 | 0.685 ± 0.001 | 0.772 ± 0.012 | 0.752 ± 0.049 |
+| M3-B1 | 0.787 ± 0.018 | 0.879 ± 0.011 | 0.887 ± 0.009 | 0.829 ± 0.024 | 0.877 ± 0.017 | 0.686 ± 0.016 | 0.783 ± 0.016 | **0.759 ± 0.053** |
+| M3 | 0.794 ± 0.020 | 0.884 ± 0.012 | 0.892 ± 0.010 | 0.845 ± 0.019 | 0.890 ± 0.015 | 0.702 ± 0.004 | 0.782 ± 0.011 | 0.754 ± 0.061 |
+| M4 | **0.800 ± 0.015** | **0.887 ± 0.009** | **0.896 ± 0.006** | **0.846 ± 0.014** | **0.897 ± 0.006** | **0.710 ± 0.021** | **0.790 ± 0.010** | 0.758 ± 0.054 |
+| UB | 0.826 ± 0.009 | 0.903 ± 0.005 | 0.911 ± 0.004 | 0.872 ± 0.013 | 0.921 ± 0.008 | 0.732 ± 0.016 | 0.810 ± 0.004 | 0.794 ± 0.047 |
 
-Observations (one split, so differences below about 0.01 may be noise):
-* **Architecture matters most at this label budget.** B0, the original network with the fixed
-  VGG loading, reaches 0.669 mIoU (0.603 in v0.1). B1's U-Net with a ResNet-50 encoder adds
-  +0.041.
-* **Tag loss alone (M1) barely helps** (+0.004 mIoU), and prediction filtering (M2) adds at
+![mIoU per method](figures/miou_by_method.png)
+
+mIoU gain over B1 on the full ground truth, per seed:
+
+| Experiment | Seed 0 | Seed 1 | Seed 2 | Mean gain | Share of B1 → UB gap |
+|---|---|---|---|---|---|
+| B0 | -0.041 | -0.010 | -0.013 | -0.021 | — |
+| M1 | +0.004 | +0.003 | +0.021 | +0.010 | 19% |
+| M3-B1 | +0.011 | +0.010 | +0.030 | +0.017 | 34% |
+| M3 | +0.016 | +0.018 | +0.038 | +0.024 | 48% |
+| M4 | +0.016 | +0.012 | +0.054 | +0.027 | 54% |
+| UB | +0.053 | +0.030 | +0.069 | +0.050 | 100% |
+
+![Gain per seed](figures/gain_per_seed.png)
+
+![Per-class IoU](figures/per_class_iou.png)
+
+![Test predictions](figures/qualitative.png)
+
+*Test predictions on split seed 2 (images are IRRG false colour: vegetation looks red). The
+Task (ii) models recover building and road areas that B1 confuses; cars are similar for all
+three.*
+
+Observations:
+* **Every Task (ii) method beats B1 on every seed**, so the gains are not noise.
+* **Self-training is what makes the tags useful.** The teacher's predicted masks on N2 are
+  corrected with the class labels (absent classes removed) and low-confidence pixels are
+  dropped. With M1 as teacher (M3) this recovers about half of the gap to the upper bound; with
+  B1 as teacher (M3-B1, the original idea) about a third.
+* **M4 (UniMatch-style) has the best mean and the lowest variance**, but it is within 0.006 of M3
+  on seeds 0 and 1 and wins clearly only on seed 2. It takes about 38 minutes against 16 for M3.
+* **The weak labels help most where N1 is least representative.** Seed 2, the hardest split,
+  shows the largest gain for every method.
+* **Tag loss alone (M1) helps little** (+0.010 on average), and prediction filtering (M2) adds at
   most 0.001 to any model. The tags carry little information: a class counts as present with a
   single pixel, so an average cell is tagged with 3.6 of the 5 classes, and 35% of cells are
   tagged "car".
-* **Self-training gives the clearest gain.** The teacher's predicted masks on N2 are corrected
-  with the class labels (absent classes removed), and low-confidence pixels are dropped.
-  * With M1 as teacher (M3): +0.016 mIoU, recovering about 30% of the 0.052 gap between B1
-    and the upper bound.
-  * With B1 as teacher (M3-B1, the original idea): +0.011. It is best on low vegetation and
-    trees, and it is the only Task (ii) method that does not lose ground on cars.
-* **UniMatch-style training (M4) ties with M3** (0.725 against 0.726). It is best on impervious
-  surfaces and buildings, but takes about 38 minutes against 16 for M3.
-* **Cars are the main open problem.** No Task (ii) method improves them, and the upper bound
-  gains most there (0.695 against 0.629). The tag loss slightly hurts cars in every model that
-  uses it.
+* **Architecture matters at this label budget.** B0, the original network with the fixed VGG
+  loading, is 0.021 below B1 on average (0.603 in v0.1 on a different split).
+* **Cars are the main open problem.** Every Task (ii) method stays at 0.654–0.661 car IoU, against
+  0.653 for B1 and 0.688 for the upper bound.
 
 #### Pseudo-label quality on N2
 
 `scripts/pseudo_label_quality.py` scores the N2 pseudo-labels of a teacher against the hidden
-N2 ground truth (diagnostic only, never used for training). Seed 0, mIoU on the kept pixels:
+N2 ground truth (diagnostic only, never used for training). Seed 0 only, mIoU on the kept pixels:
 
 | Teacher | Raw masks | + class-label correction | + confidence threshold | Both (used by M3) |
 |---|---|---|---|---|
@@ -131,7 +210,7 @@ gives the largest gain on cars (0.612 → 0.648). The confidence threshold adds 
 #### Overfitting
 
 The N1-only models are scored on their 3 training images and on the 23 N2 images, which are
-fully held out for them (seed 0, final checkpoints):
+fully held out for them (seed 0 only, final checkpoints):
 
 | Model | N1 (train) | N2 (held-out) | Test |
 |---|---|---|---|
@@ -194,6 +273,9 @@ scripts/run_all.sh
 uv run python -m wsss.evaluate --config configs/m1_tags_unet_r50.yaml \
     --checkpoint runs/m1_tags_unet_r50/seed0/model.pt --seed 0 --filter-threshold 0.5
 ```
+
+Figures: `uv run python scripts/make_figures.py --out figures` (needs the trained checkpoints).
+Pseudo-label diagnostics: `scripts/pseudo_label_quality.py`.
 
 Outputs are written to `runs/<name>/seed<k>/`: `model.pt`, `results.json` (config, split,
 metrics and pseudo-label quality) and TensorBoard logs. Hyper-parameters should be tuned on a
