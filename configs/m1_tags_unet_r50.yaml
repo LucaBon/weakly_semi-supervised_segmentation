@@ -5,4 +5,4 @@ method: tags
 model: {architecture: unet, encoder: resnet50, pretrained: true}
 train: {batch_size: 4, unlabeled_batch_size: 4}
 tags: {weight: 0.5}
-eval: {filter_threshold: 0.5}
+eval: {filter_threshold: 0.5, tta: true}  # TTA: 8 flips / rotations averaged at test time

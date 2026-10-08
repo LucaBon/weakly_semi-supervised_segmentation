@@ -34,7 +34,8 @@ DEFAULTS = {
                "finetune_iters": 1000, "finetune_lr_mult": 0.1},
     "unimatch": {"threshold": 0.95, "car_threshold": 0.8, "weight": 1.0,
                  "ema_decay": 0.0},
-    "eval": {"window": 512, "stride": 256, "filter_threshold": None},
+    "eval": {"window": 512, "stride": 256, "filter_threshold": None, "car_offset": 0.0,
+             "tta": False, "refine": None},
 }
 
 

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from wsss.constants import N_CLASSES, N_TAG_CLASSES
+from wsss.constants import CAR, N_CLASSES, N_TAG_CLASSES
 from wsss.data import grid_cells, to_tensor
 from wsss.losses import tag_scores
 
@@ -19,7 +19,7 @@ def window_origins(length, window, stride):
 @torch.no_grad()
 def sliding_window_probabilities(model, image, window=512, stride=256,
                                  batch_size=4, filter_threshold=None,
-                                 filter_cell_size=200, device="cuda", amp=True):
+                                 filter_cell_size=200, tta=False, device="cuda", amp=True):
     """
     Class probabilities for a whole image, averaging overlapping windows, so
     every pixel (borders included) is predicted.
@@ -34,6 +34,7 @@ def sliding_window_probabilities(model, image, window=512, stride=256,
             the threshold are suppressed
         filter_cell_size (int): scores are pooled over cells of this size,
             as during training (LSE scores depend on the pooled area)
+        tta (bool): average over the 8 flips / 90-degree rotations
         device (str): device
         amp (bool): use mixed precision
 
@@ -55,9 +56,13 @@ def sliding_window_probabilities(model, image, window=512, stride=256,
         batch_origins = origins[start:start + batch_size]
         batch = torch.stack([tensor[:, y:y + window, x:x + window]
                              for y, x in batch_origins]).to(device)
-        with torch.autocast(device_type=device.split(":")[0], enabled=amp):
-            logits = model(batch)
-        window_probabilities = logits.float().softmax(1)
+        if tta:
+            window_probabilities = dihedral_average(model, batch, device, amp)
+            logits = window_probabilities.clamp(min=1e-8).log()
+        else:
+            with torch.autocast(device_type=device.split(":")[0], enabled=amp):
+                logits = model(batch)
+            window_probabilities = logits.float().softmax(1)
         if filter_threshold is not None:
             window_probabilities = filter_absent_classes(logits, filter_threshold,
                                                          filter_cell_size)
@@ -67,6 +72,22 @@ def sliding_window_probabilities(model, image, window=512, stride=256,
             counts[:, y:y + window, x:x + window] += 1
     probabilities /= counts
     return probabilities[:, :height, :width].numpy()
+
+
+def dihedral_average(model, batch, device, amp):
+    """Softmax averaged over the 8 dihedral transforms of the input."""
+    total = 0
+    for flip in (False, True):
+        for k in range(4):
+            x = torch.rot90(batch, k, (2, 3))
+            if flip:
+                x = x.flip(3)
+            with torch.autocast(device_type=device.split(":")[0], enabled=amp):
+                p = model(x).float().softmax(1)
+            if flip:
+                p = p.flip(3)
+            total = total + torch.rot90(p, -k, (2, 3))
+    return total / 8
 
 
 def filter_absent_classes(logits, threshold, cell_size=200):
@@ -80,6 +101,28 @@ def filter_absent_classes(logits, threshold, cell_size=200):
     return logits.masked_fill(absent, float("-inf")).softmax(1)
 
 
-def predict(model, image, **kwargs):
-    """(H, W) uint8 class prediction for a whole image."""
-    return sliding_window_probabilities(model, image, **kwargs).argmax(0).astype(np.uint8)
+def decide(probabilities, car_offset=0.0):
+    """
+    Class decision from (C, H, W) probabilities. `car_offset` is added to the
+    car log-probability before the argmax: a negative value lowers the car
+    prior, trading car recall for precision (post-hoc calibration).
+    """
+    if car_offset == 0:
+        return probabilities.argmax(0).astype(np.uint8)
+    scores = np.log(np.clip(probabilities, 1e-8, None))
+    scores[CAR] += car_offset
+    return scores.argmax(0).astype(np.uint8)
+
+
+def predict(model, image, car_offset=0.0, refine=None, **kwargs):
+    """
+    (H, W) uint8 class prediction for a whole image.
+    Args:
+        refine (dict): optional PAMR settings (iterations, dilations)
+    """
+    probabilities = sliding_window_probabilities(model, image, **kwargs)
+    if refine:
+        from wsss.refine import refine_probabilities
+        probabilities = refine_probabilities(probabilities, image,
+                                             device=kwargs.get("device", "cuda"), **refine)
+    return decide(probabilities, car_offset)

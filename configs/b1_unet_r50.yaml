@@ -2,3 +2,4 @@
 name: b1_unet_r50
 method: supervised
 model: {architecture: unet, encoder: resnet50, pretrained: true}
+eval: {tta: true}  # TTA: 8 flips / rotations averaged at test time

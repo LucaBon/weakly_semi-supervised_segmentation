@@ -4,3 +4,4 @@ name: b0_encdec_unpool
 method: supervised
 model: {architecture: encdec_unpool, pretrained: true, dropout: 0.5}
 train: {optimizer: adam, lr: 1.0e-3, encoder_lr_mult: 0.5, iters: 10000, batch_size: 8}
+eval: {tta: true}  # TTA: 8 flips / rotations averaged at test time

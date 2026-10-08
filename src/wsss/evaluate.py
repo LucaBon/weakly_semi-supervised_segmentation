@@ -12,7 +12,8 @@ from wsss.models import build_model
 
 
 def evaluate(model, data_root, test_ids, window=512, stride=256,
-             filter_threshold=None, filter_cell_size=200, device="cuda", amp=True):
+             filter_threshold=None, filter_cell_size=200, car_offset=0.0,
+             tta=False, refine=None, device="cuda", amp=True):
     """
     Evaluate on whole test images (sliding window) against the full and the
     eroded ground truth (ISPRS protocol: boundary pixels ignored).
@@ -26,6 +27,7 @@ def evaluate(model, data_root, test_ids, window=512, stride=256,
                              window=window, stride=stride,
                              filter_threshold=filter_threshold,
                              filter_cell_size=filter_cell_size,
+                             car_offset=car_offset, tta=tta, refine=refine,
                              device=device, amp=amp)
         matrices["full"].update(prediction, load_label(data_root, area_id))
         eroded_path = os.path.join(data_root, "labels_eroded",
@@ -57,6 +59,9 @@ def main():
     parser.add_argument("--filter-threshold", type=float, default=None,
                         help="prediction filtering threshold (Bae et al. 2022); "
                              "defaults to eval.filter_threshold of the config")
+    parser.add_argument("--car-offset", type=float, default=None,
+                        help="added to the car log-probability (post-hoc calibration); "
+                             "defaults to eval.car_offset of the config")
     args = parser.parse_args()
     config = load_config(args.config, seed=args.seed)
     _, _, test_ids = split_data(list_area_ids(config["data_root"]),
@@ -67,6 +72,8 @@ def main():
     eval_config = dict(config["eval"])
     if args.filter_threshold is not None:
         eval_config["filter_threshold"] = args.filter_threshold
+    if args.car_offset is not None:
+        eval_config["car_offset"] = args.car_offset
     results = evaluate(model, config["data_root"], test_ids,
                        filter_cell_size=config["tags"]["cell_size"],
                        device=config["device"], amp=config["train"]["amp"],
