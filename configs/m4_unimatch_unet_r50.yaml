@@ -5,4 +5,4 @@ method: unimatch
 model: {architecture: unet, encoder: resnet50, pretrained: true}
 train: {batch_size: 4, unlabeled_batch_size: 4}
 unimatch: {threshold: 0.95, car_threshold: 0.8, weight: 1.0}
-eval: {filter_threshold: 0.5}
+eval: {filter_threshold: 0.5, tta: true}  # TTA: 8 flips / rotations averaged at test time

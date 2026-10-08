@@ -99,3 +99,55 @@ def multilabel_stats(probabilities, targets, threshold=0.5):
     return {"precision": precision.tolist(),
             "recall": recall.tolist(),
             "accuracy": accuracy.tolist()}
+
+
+def boundary_map(labels):
+    """True where a pixel differs from its right or bottom neighbour."""
+    boundary = np.zeros(labels.shape, dtype=bool)
+    boundary[:, :-1] |= labels[:, :-1] != labels[:, 1:]
+    boundary[:-1, :] |= labels[:-1, :] != labels[1:, :]
+    return boundary
+
+
+class BoundaryScore:
+    """
+    Boundary F-score (Csurka et al., BMVC 2013): a predicted boundary pixel is
+    correct if a ground-truth boundary lies within `tolerance` pixels, and
+    vice versa. Counts are accumulated over a dataset, for all classes
+    together and for each class separately.
+    """
+
+    def __init__(self, tolerance=2, classes=(), n_classes=N_CLASSES):
+        self.tolerance = tolerance
+        self.classes = list(classes)
+        self.counts = {key: np.zeros(4) for key in ["all"] + self.classes}
+
+    def _update(self, key, predicted, actual):
+        from scipy.ndimage import distance_transform_edt
+        if predicted.any():
+            to_actual = distance_transform_edt(~actual) if actual.any() else np.full(actual.shape, np.inf)
+            self.counts[key][0] += (to_actual[predicted] <= self.tolerance).sum()
+        if actual.any():
+            to_predicted = distance_transform_edt(~predicted) if predicted.any() else np.full(actual.shape, np.inf)
+            self.counts[key][2] += (to_predicted[actual] <= self.tolerance).sum()
+        self.counts[key][1] += predicted.sum()
+        self.counts[key][3] += actual.sum()
+
+    def update(self, prediction, gt):
+        self._update("all", boundary_map(prediction), boundary_map(gt))
+        for c in self.classes:
+            self._update(c, boundary_map(prediction == c), boundary_map(gt == c))
+
+    def summary(self):
+        results = {}
+        for key, (tp_p, n_p, tp_r, n_r) in self.counts.items():
+            precision = tp_p / n_p if n_p else np.nan
+            recall = tp_r / n_r if n_r else np.nan
+            if np.isnan(precision) or np.isnan(recall):
+                f1 = np.nan
+            elif precision + recall == 0:
+                f1 = 0.0
+            else:
+                f1 = 2 * precision * recall / (precision + recall)
+            results[key] = {"precision": float(precision), "recall": float(recall), "f1": float(f1)}
+        return results

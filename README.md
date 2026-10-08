@@ -222,6 +222,78 @@ generalises better, and cars overfit the most. These numbers do not show whether
 earlier would help: only final checkpoints are kept, and the test set is not tracked during
 training. Learning curves on the dev split (seed 99) would answer that.
 
+#### Evaluation-time refinement: boundaries and cars
+
+These variants change only inference and are applied to the trained checkpoints. Each setting is
+chosen on the **dev split (seed 99)**: B1, M1 and M3 are trained on it, and the reported seeds
+are never used for tuning. The chosen setting is then applied unchanged to seeds 0, 1, 2.
+`scripts/boundary_refinement.py` and `scripts/calibrate_car.py` reproduce the tables. Boundary F1
+is the boundary F-score (Csurka et al. 2013): a predicted border pixel counts as correct if a
+true border lies within 2 px (18 cm), and vice versa.
+
+**Test-time augmentation (TTA): adopted.** Each window is predicted in its 8 flipped / rotated
+versions, and the probabilities are averaged after transforming them back. On the dev split it
+gives the best mIoU for both models. On the reported seeds:
+
+| Model | Seed 0 | Seed 1 | Seed 2 | Mean mIoU gain | Mean car IoU gain | Mean car boundary F1 gain |
+|---|---|---|---|---|---|---|
+| B1 | 0.710 → 0.721 | 0.742 → 0.752 | 0.691 → 0.701 | +0.010 | +0.016 | +0.024 |
+| M3 | 0.726 → 0.732 | 0.761 → 0.767 | 0.729 → 0.736 | +0.007 | +0.012 | +0.018 |
+
+TTA improves both models on every seed and every metric. Inference is about 6× slower (6.9 s
+against 1.1 s per image). Why it works here:
+* aerial images have no canonical orientation, and the models are trained with the same 8
+  transforms, so all views are valid inputs; averaging them is an ensemble for free;
+* the network is not exactly rotation-equivariant, so borders shift by a pixel or two between
+  views, and the average is a better border;
+* a 1–2 px border error is a large fraction of a 20×45 px car, so cars gain most;
+* models trained on 3 images have high variance, which averaging reduces.
+
+`eval.tta: true` is now set in every config. The code default stays off, so the main result
+tables above (computed without TTA) remain reproducible.
+
+**PAMR refinement: rejected** (a negative result). PAMR (Araslanov & Roth, CVPR 2020) propagates
+probabilities between neighbouring pixels of similar colour, to move borders onto image edges.
+Mean over seeds 0, 1, 2:
+
+| Model | Variant | mIoU full | mIoU eroded | Car IoU full | Car IoU eroded | Boundary F1 | Car boundary F1 |
+|---|---|---|---|---|---|---|---|
+| B1 | Plain | 0.714 | 0.768 | 0.653 | 0.746 | 0.449 | 0.591 |
+| B1 | **TTA** | 0.724 | 0.779 | 0.669 | 0.767 | 0.465 | 0.616 |
+| B1 | PAMR light | 0.710 | 0.764 | 0.632 | 0.732 | 0.463 | 0.599 |
+| B1 | PAMR full | 0.683 | 0.733 | 0.514 | 0.595 | 0.439 | 0.480 |
+| B1 | TTA + PAMR light | 0.718 | 0.774 | 0.643 | 0.747 | 0.473 | 0.609 |
+| B1 | TTA + PAMR full | 0.688 | 0.739 | 0.517 | 0.600 | 0.443 | 0.482 |
+| M3 | Plain | 0.738 | 0.794 | 0.659 | 0.754 | 0.455 | 0.559 |
+| M3 | **TTA** | 0.745 | 0.802 | 0.671 | 0.771 | 0.467 | 0.578 |
+| M3 | PAMR light | 0.735 | 0.791 | 0.643 | 0.743 | 0.473 | 0.590 |
+| M3 | PAMR full | 0.707 | 0.760 | 0.531 | 0.612 | 0.445 | 0.481 |
+| M3 | TTA + PAMR light | 0.740 | 0.797 | 0.651 | 0.755 | 0.479 | 0.598 |
+| M3 | TTA + PAMR full | 0.711 | 0.764 | 0.534 | 0.617 | 0.448 | 0.485 |
+
+* Full-strength PAMR (10 iterations, dilations up to 24 px) removes about 0.13 car IoU on every
+  seed: cars and road are often similar in colour, so road probability leaks into the cars.
+* The light version (5 iterations, dilations up to 8 px) slightly improves the overall boundary
+  F-score but lowers car IoU on every seed and never improves mIoU. Its effect on car borders
+  changes sign between seeds.
+
+The code is kept (`src/wsss/refine.py`, `eval.refine`) but disabled.
+
+**Car score calibration: small gain, not adopted.** A constant is added to the car
+log-probability before the argmax. This is option 1 of the car analysis below; the offset is
+chosen on the dev split by mIoU.
+
+| Model | Chosen offset | Car IoU full (seeds 0 / 1 / 2) | Mean car IoU gain | Car precision | Car recall | Mean mIoU gain |
+|---|---|---|---|---|---|---|
+| B1 | -0.75 | 0.629 → 0.637 / 0.710 → 0.710 / 0.621 → 0.631 | +0.006 | 0.750 → 0.780 | 0.834 → 0.809 | +0.001 |
+| M3 | -0.75 | 0.624 → 0.640 / 0.725 → 0.725 / 0.628 → 0.642 | +0.010 | 0.728 → 0.761 | 0.876 → 0.849 | +0.002 |
+
+The same offset (−0.75) is chosen for both models. Precision rises by about 3 points and recall
+falls by about 3, so car IoU improves by only about 0.01, and not at all on seed 1. Most of the
+car error is therefore border localisation, not a bias a constant can remove. TTA helps cars
+more (+0.012 to +0.016). Combining TTA with the offset has not been tested. `eval.car_offset`
+stays 0.
+
 #### Future work: improving the car class
 
 Car error analysis of M3 over the 3 test splits (21 images, about 1,800 cars):
@@ -246,11 +318,9 @@ Likely cause: the training setup stacks several biases towards cars. These are a
 8.3, the Dice loss weighting every class equally, 30% of crops centred on a car, and a lower
 pseudo-label threshold for cars (0.7 / 0.8 instead of 0.9 / 0.95).
 
-Two options to try:
-1. **Calibrate the car score after training (no retraining).** Subtract a constant from the car
-   logit at inference. Choose it on the dev split (seed 99), never on the test splits; this needs
-   B1 and M3 trained on seed 99 first (about 35 minutes). It measures how much of the car error is
-   only the bias.
+Two options:
+1. **Calibrate the car score after training (no retraining). Tried:** about +0.01 car IoU, see
+   "Evaluation-time refinement" above. The bias explains only a small part of the car error.
 2. **Retrain with less car bias.**
    * Cap the class weights at about 3 (`losses.class_weights_from_labels`, `max_weight`).
    * Use the same pseudo-label threshold for cars as for the other classes (`pseudo.car_threshold`,
@@ -315,7 +385,8 @@ uv run python -m wsss.evaluate --config configs/m1_tags_unet_r50.yaml \
 ```
 
 Figures: `uv run python scripts/make_figures.py --out figures` (needs the trained checkpoints).
-Pseudo-label diagnostics: `scripts/pseudo_label_quality.py`.
+Pseudo-label diagnostics: `scripts/pseudo_label_quality.py`. Evaluation-time refinement:
+`scripts/boundary_refinement.py` (TTA, PAMR) and `scripts/calibrate_car.py` (car offset).
 
 Outputs are written to `runs/<name>/seed<k>/`: `model.pt`, `results.json` (config, split,
 metrics and pseudo-label quality) and TensorBoard logs. Hyper-parameters should be tuned on a
@@ -331,8 +402,9 @@ src/wsss/
   models/          EncDecUnpool (VGG16-BN) and segmentation_models_pytorch wrappers
   losses.py        CE + Dice, class weights, LSE tag pooling and tag loss
   pseudo_label.py  tag-constrained, thresholded pseudo-labels
-  inference.py     sliding-window prediction, prediction filtering
-  metrics.py       accumulated confusion matrix (IoU, F1, OA, kappa)
+  inference.py     sliding-window prediction, TTA, prediction filtering, car offset
+  refine.py        PAMR refinement (evaluated, disabled)
+  metrics.py       accumulated confusion matrix (IoU, F1, OA, kappa), boundary F-score
   train.py         all methods
   evaluate.py      test-set evaluation (full + eroded GT)
 ```

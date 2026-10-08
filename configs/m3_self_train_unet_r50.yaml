@@ -8,4 +8,4 @@ train: {batch_size: 4, unlabeled_batch_size: 4}
 tags: {weight: 0.0}
 pseudo: {teacher: "runs/m1_tags_unet_r50/seed{seed}/model.pt", threshold: 0.9,
          car_threshold: 0.7, finetune_iters: 1000}
-eval: {filter_threshold: 0.5}
+eval: {filter_threshold: 0.5, tta: true}  # TTA: 8 flips / rotations averaged at test time

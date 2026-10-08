@@ -2,3 +2,4 @@
 name: ub_unet_r50
 method: upper_bound
 model: {architecture: unet, encoder: resnet50, pretrained: true}
+eval: {tta: true}  # TTA: 8 flips / rotations averaged at test time

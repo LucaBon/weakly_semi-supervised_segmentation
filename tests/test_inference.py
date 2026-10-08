@@ -2,7 +2,8 @@ import numpy as np
 import torch
 
 from wsss.data import to_tensor
-from wsss.inference import sliding_window_probabilities, window_origins
+from wsss.constants import CAR
+from wsss.inference import decide, sliding_window_probabilities, window_origins
 
 
 def test_window_origins_cover_everything():
@@ -45,3 +46,12 @@ def test_prediction_filtering_removes_absent_class():
                                                  filter_threshold=0.5)
     # pooled building probability ~0.32 < 0.5: building is suppressed
     assert probabilities[1].max() == 0
+
+
+def test_car_offset_trades_car_for_the_runner_up():
+    probabilities = np.zeros((6, 1, 2), dtype=np.float32)
+    probabilities[CAR, 0] = [0.55, 0.9]
+    probabilities[0, 0] = [0.45, 0.1]
+    assert decide(probabilities).tolist() == [[CAR, CAR]]
+    # log(0.55) - 0.5 < log(0.45), but log(0.9) - 0.5 > log(0.1)
+    assert decide(probabilities, car_offset=-0.5).tolist() == [[0, CAR]]
