@@ -108,17 +108,22 @@ result reachable if N2 were fully annotated.
 
 * The **final checkpoint** is evaluated after a fixed iteration budget. No model selection on
   the test set.
-* Whole test images, sliding window (512 px, stride 256), every pixel included.
+* Whole test images, sliding window (512 px, stride 256), every pixel included. The configs
+  now also average over the 8 flips / rotations (TTA, `eval.tta`); the main results tables
+  were computed without it, and its effect is reported separately.
 * Metrics come from one confusion matrix accumulated over the test set: per-class IoU/F1,
   mIoU, mF1, OA, over the 5 classes with clutter excluded. They are computed on both the
   full and the **eroded** ground truth (ISPRS protocol).
 * Reported as mean ± std over split seeds 0, 1, 2 (`scripts/aggregate_results.py`).
+* Evaluation-time settings (TTA, refinement, car offset) are chosen on a separate dev split,
+  seed 99, that is never reported.
 
 ### Results
 
 Mean ± std over split seeds 0, 1, 2. Each seed draws different N1 / N2 / test images, so the std
 mostly measures how hard the split is; the per-seed gains below are the fairer comparison.
-U-Net ResNet-50 (B0: EncDecUnpool), 10k iterations, final checkpoint, 7 test images per seed.
+U-Net ResNet-50 (B0: EncDecUnpool), 10k iterations, final checkpoint, 7 test images per seed,
+**without TTA**. TTA adds +0.007 to +0.010 mIoU (see "Evaluation-time refinement" below).
 Bold = best method that uses only Task (ii) data (UB excluded).
 
 * Seed 0: N1 = areas 2, 29, 31; test = areas 1, 6, 8, 12, 24, 27, 28
@@ -417,4 +422,6 @@ src/wsss/
 * Bae et al., *One Weird Trick to Improve Your Semi-Weakly Supervised Semantic Segmentation Model*, IJCAI 2022
 * Yang et al., *Revisiting Weak-to-Strong Consistency in Semi-Supervised Semantic Segmentation* (UniMatch), CVPR 2023
 * Noh et al., *Learning Deconvolution Network for Semantic Segmentation*, ICCV 2015
+* Araslanov & Roth, *Single-Stage Semantic Segmentation from Image Labels*, CVPR 2020 (PAMR)
+* Csurka et al., *What is a good evaluation measure for semantic segmentation?*, BMVC 2013 (boundary F-score)
 * Wang et al., *UNetFormer*, ISPRS J. P&RS 2022 (fully supervised Vaihingen reference)
